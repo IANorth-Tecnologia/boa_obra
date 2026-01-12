@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: boa_obra_api
+    restart: always
+    volumes:
+      - ./dados_api:/app/src/infrastructure/db
+      - ./backend/assets:/app/src/assets 
+    environment:
+      - SECRET_KEY=sua_chave_secreta_super_segura
+    ports:
+      - "8032:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: boa_obra_web
+    restart: always
+    ports:
+      - "8822:80" 
+    depends_on:
+      - backend
