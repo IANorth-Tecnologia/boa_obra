@@ -3,11 +3,10 @@ version: '3.8'
 services:
   backend:
     build: ./backend
-    container_name: boa_obra_api_dev
+    container_name: boaobra_api_dev
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
-      - ./dados_api_dev:/app/src/infrastructure/db
     ports:
       - "8000:8000"
     environment:
