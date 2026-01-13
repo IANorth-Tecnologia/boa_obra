@@ -6,7 +6,7 @@ services:
     container_name: boaobra_api
     restart: always
     volumes:
-      - ./dados_api:/app/dados
+      - dados_persistentes:/app/dados
       - ./backend/assets:/app/src/assets
     environment:
       - SECRET_KEY=sua_chave_secreta_super_segura
