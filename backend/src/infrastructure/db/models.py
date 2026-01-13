@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, Text, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, Text, LargeBinary, DECIMAL
 from sqlalchemy.orm import relationship
 from src.infrastructure.db.session import Base
 from datetime import datetime
@@ -32,7 +32,7 @@ class TItemPreco(Base):
     CODIGO_ITEM = Column(String(50))
     DESCRICAO = Column(String(300))
     UNIDADE = Column(String(20))
-    PRECO_UNITARIO = Column(Float)
+    PRECO_UNITARIO = Column(DECIMAL(10, 2))
     TIPO = Column(String(20), default="MATERIAL")
 
 class TOrcamentoObra(Base):
