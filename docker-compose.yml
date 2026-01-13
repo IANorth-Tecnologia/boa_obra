@@ -22,3 +22,6 @@ services:
       - "8022:80"    
     depends_on:
       - backend
+
+volumes:
+  dados_persistentes:
