@@ -19,10 +19,12 @@ from src.application.use_cases.sincronizar_servico import SincronizarServicoUC
 from src.application.dtos import ServicoInputDTO
 from src.application.use_cases.gerar_pdf import desenhar_pdf, desenhar_orcamento
 from src.auth import verificar_senha, gerar_hash_senha, criar_token_acesso, SECRET_KEY, ALGORITHM
+from src.routers import etapas
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Boa Obra ERP")
+app.include_router(etapas.router)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.exception_handler(RequestValidationError)
