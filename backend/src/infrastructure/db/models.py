@@ -52,7 +52,7 @@ class TFuncionario(Base):
     NOME = Column(String(100), nullable=False)
     FUNCAO = Column(String(50))
     CPF = Column(String(14), nullable=True)
-    MATRICULA = Column(String(20), unique=True, nullable=True)
+    MATRICULA = Column(String(20), nullable=True)
     SENHA_HASH = Column(String(200))                        
     PERFIL = Column(String(20), default="COLABORADOR")
     STATUS = Column(Integer, default=1)
