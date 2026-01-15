@@ -51,9 +51,7 @@ class TFuncionario(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True)
     NOME = Column(String(100), nullable=False)
     FUNCAO = Column(String(50))
-    CPF = Column(String(14), 
-                 #unique=True,
-                 nullable=True)
+    CPF = Column(String(14), nullable=True)
     MATRICULA = Column(String(20), unique=True, nullable=True)
     SENHA_HASH = Column(String(200))                        
     PERFIL = Column(String(20), default="COLABORADOR")
