@@ -173,7 +173,7 @@ class TEtapaPadrao(Base):
     NOME = Column(String(100), nullable=False)
     ORDEM = Column(Integer, default=0)
 
-    servicos = relationship("TServicoPadrão", back_populates="etapa")
+    servicos = relationship("TServicoPadrao", back_populates="etapa")
 
 class TServicoPadrao(Base):
     """
