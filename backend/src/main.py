@@ -25,6 +25,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Boa Obra ERP")
 app.include_router(etapas.router)
+app.include_router(etapas.router)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.exception_handler(RequestValidationError)
