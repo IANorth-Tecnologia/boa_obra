@@ -175,7 +175,7 @@ class TEtapaPadrao(Base):
 
     servicos = relationship("TServicoPadrão", back_populates="etapa")
 
-class TservicoPadrao(Base):
+class TServicoPadrao(Base):
     """
     Catálogo de serviços possíveis dentro de uma etapa.
     Ex: 'Lançamento de Cabos' dentro de 'Cabeamento'.
