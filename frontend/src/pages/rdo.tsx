@@ -8,12 +8,13 @@ import {
   Sun, Cloud, CloudRain, AlertTriangle, PlayCircle, PauseCircle, Wifi, WifiOff
 } from 'lucide-react';
 
-const CARGOS_GESTAO = ['ENCARREGADO', 'MESTRE', 'ENGENHEIRO', 'GERENTE', 'COORDENADOR', 'ADMINISTRATIVO', 'LIDER', 'SUPERVISOR', 'ANALISTA', 'TECNICO'];
+const CARGOS_GESTAO = ['ENCARREGADO', 'MESTRE', 'ENGENHEIRO', 'GERENTE', 'COORDENADOR', 'ADMINISTRATIVO', 'LIDER', 'SUPERVISOR'];
 
 export default function RDO() {
   const navigate = useNavigate();
   
   const [obras, setObras] = useState<any[]>([]);
+  const [etapas, setEtapas] = useState<any[]>([]); 
   const [catalogoEquip, setCatalogoEquip] = useState<any[]>([]);
   const [opcoesGestao, setOpcoesGestao] = useState<any[]>([]);
   const [opcoesOperacional, setOpcoesOperacional] = useState<any[]>([]);
@@ -24,6 +25,7 @@ export default function RDO() {
 
   const [form, setForm] = useState({
     atividadeId: '',
+    etapaId: '', 
     data: new Date().toISOString().split('T')[0], 
     horaInicio: '07:00', horaFim: '17:00',
     descricao: '', 
@@ -43,6 +45,17 @@ export default function RDO() {
 
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (form.atividadeId) {
+        setEtapas([]); 
+        api.get(`/etapas/obra/${form.atividadeId}`)
+            .then(res => setEtapas(res.data))
+            .catch(err => console.error("Erro ao buscar etapas (pode estar offline)", err));
+    } else {
+        setEtapas([]);
+    }
+  }, [form.atividadeId]);
 
   useEffect(() => {
     const handleStatus = () => setModoOffline(!navigator.onLine);
@@ -124,6 +137,7 @@ export default function RDO() {
       try {
         const rdoLocal = {
             atividadeId: parseInt(form.atividadeId),
+            etapaId: form.etapaId ? parseInt(form.etapaId) : undefined, 
             data: form.data,
             horaInicio: form.horaInicio,
             horaFim: form.horaFim,
@@ -180,6 +194,21 @@ export default function RDO() {
                             {obras.map(o => <option key={o.ID} value={o.ID}>{o.CODATIVIDADE} - {o.DESCRICAO}</option>)}
                         </select>
                     </div>
+
+                    {etapas.length > 0 && (
+                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <label className="text-xs font-bold text-blue-600 uppercase">Etapa / Fase da Obra</label>
+                            <select className="w-full p-3 border border-blue-200 rounded-lg bg-white mt-1 outline-none focus:ring-2 focus:ring-blue-500" value={form.etapaId} onChange={e => setForm({...form, etapaId: e.target.value})}>
+                                <option value="">-- Selecione a Etapa (Opcional) --</option>
+                                {etapas.map((et:any) => (
+                                    <option key={et.ID} value={et.ID}>
+                                        {et.ORDEM}. {et.NOME_ETAPA} ({et.STATUS})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-blue-500 mt-1 ml-1">Selecione a fase principal do serviço de hoje.</p>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="text-xs font-bold text-gray-500 uppercase">Início</label><input type="time" className="w-full p-3 border rounded-lg mt-1" value={form.horaInicio} onChange={e => setForm({...form, horaInicio: e.target.value})}/></div>

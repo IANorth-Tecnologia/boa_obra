@@ -3,6 +3,7 @@ import Dexie, { type Table } from 'dexie';
 export interface RDOLocal {
   id?: number;
   atividadeId: number;
+  etapaId?: number;
   data: string;
   horaInicio: string;
   horaFim: string;
