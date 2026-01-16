@@ -96,6 +96,7 @@ class AtividadeCreate(BaseModel):
     LOCAL: Optional[str] = ""
     FISCAL: Optional[str] = ""
     TIPO_SERVICO: Optional[str] = ""
+    ETAPAS: List[str] = []
 
 class PrecoCreate(BaseModel):
     CODIGO_ITEM: str
@@ -284,10 +285,43 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
 
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
-    novo = models.TAtividade(CODATIVIDADE=item.CODATIVIDADE, DESCRICAO=item.DESCRICAO, CONTRATADA=item.CONTRATADA, CONTRATANTE=item.CONTRATANTE, OBJETIVO=item.OBJETIVO, LOCAL=item.LOCAL, FISCAL=item.FISCAL, TIPO_SERVICO=item.TIPO_SERVICO, DATA_ABERTURA=datetime.now(), STATUSATIVIDADE=1, CODLOCALSERVICO=1)
+    # 1. Cria a Obra
+    novo = models.TAtividade(
+        CODATIVIDADE=item.CODATIVIDADE, 
+        DESCRICAO=item.DESCRICAO, 
+        CONTRATADA=item.CONTRATADA, 
+        CONTRATANTE=item.CONTRATANTE, 
+        OBJETIVO=item.OBJETIVO, 
+        LOCAL=item.LOCAL, 
+        FISCAL=item.FISCAL, 
+        TIPO_SERVICO=item.TIPO_SERVICO, 
+        DATA_ABERTURA=datetime.now(), 
+        STATUSATIVIDADE=1, 
+        CODLOCALSERVICO=1
+    )
     db.add(novo)
     db.commit()
-    return {"msg": "Obra Criada"}
+    db.refresh(novo)
+
+    if item.ETAPAS:
+        lista_objetos = []
+        for index, nome_etapa in enumerate(item.ETAPAS):
+            etapa = models.TEtapaObra(
+                ID_LOCAL=novo.ID,
+                NOME_ETAPA=nome_etapa.upper(), 
+                ORDEM=index + 1,
+                PERCENTUAL=0.0,
+                STATUS="PENDENTE",
+                DATA_INICIO=datetime.now(),
+                DATA_FIM=datetime.now()
+            )
+            lista_objetos.append(etapa)
+        
+        db.add_all(lista_objetos)
+        db.commit()
+
+    return {"msg": "Obra e Etapas Criadas com Sucesso"}
+
 
 @app.post("/admin/precos")
 def criar_preco(item: PrecoCreate, db: Session = Depends(get_db)):

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { Trash2, Plus, Users, HardHat, DollarSign, Edit, X, Search, Truck } from 'lucide-react';
+import { Trash2, Plus, Users, HardHat, DollarSign, Edit, X, Search, Truck, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Equipe from './Equipe'; 
 
@@ -13,6 +13,10 @@ export default function Config() {
     const [termoBusca, setTermoBusca] = useState('');
 
     const [formObra, setFormObra] = useState({ cod: '', desc: '', contratada: 'IANORTH', contratante: '', objetivo: '', local: '', fiscal: '', tipo: '' });
+    
+    const [novaEtapa, setNovaEtapa] = useState('');
+    const [etapasObra, setEtapasObra] = useState<string[]>([]);
+
     const [formPreco, setFormPreco] = useState({ cod: '', desc: '', und: 'UN', valor: 0, tipo: 'MATERIAL' });
     const [formEquip, setFormEquip] = useState({ descricao: '', valor: 0 });
 
@@ -48,6 +52,8 @@ export default function Config() {
     const cancelarEdicao = () => {
         setEditandoId(null);
         setFormObra({ cod: '', desc: '', contratada: 'IANORTH', contratante: '', objetivo: '', local: '', fiscal: '', tipo: '' });
+        setEtapasObra([]); 
+        setNovaEtapa('');
         setFormPreco({ cod: '', desc: '', und: 'UN', valor: 0, tipo: 'MATERIAL' });
         setFormEquip({ descricao: '', valor: 0 });
     };
@@ -61,12 +67,26 @@ export default function Config() {
                 objetivo: item.OBJETIVO || '', local: item.LOCAL || '',
                 fiscal: item.FISCAL || '', tipo: item.TIPO_SERVICO || ''
             });
+            setEtapasObra([]); 
         }
         if (aba === 'SERVICOS') setFormPreco({ 
             cod: item.CODIGO_ITEM, desc: item.DESCRICAO, 
             und: item.UNIDADE || 'UN', valor: item.PRECO_UNITARIO,
             tipo: item.TIPO || 'MATERIAL'
         });
+    };
+
+    const addEtapaLista = () => {
+        if (novaEtapa.trim()) {
+            setEtapasObra([...etapasObra, novaEtapa.toUpperCase()]);
+            setNovaEtapa('');
+        }
+    };
+
+    const removeEtapaLista = (index: number) => {
+        const novaLista = [...etapasObra];
+        novaLista.splice(index, 1);
+        setEtapasObra(novaLista);
     };
 
     const listaExibida = lista.filter(item => {
@@ -81,17 +101,33 @@ export default function Config() {
 
     const salvarObra = async () => {
         if (!formObra.cod || !formObra.desc) return alert("Obrigatórios: Código e Descrição");
+        
         const payload = { 
-            CODATIVIDADE: formObra.cod, DESCRICAO: formObra.desc,
-            CONTRATADA: formObra.contratada, CONTRATANTE: formObra.contratante,
-            OBJETIVO: formObra.objetivo, LOCAL: formObra.local,
-            FISCAL: formObra.fiscal, TIPO_SERVICO: formObra.tipo
+            CODATIVIDADE: formObra.cod, 
+            DESCRICAO: formObra.desc,
+            CONTRATADA: formObra.contratada, 
+            CONTRATANTE: formObra.contratante,
+            OBJETIVO: formObra.objetivo, 
+            LOCAL: formObra.local,
+            FISCAL: formObra.fiscal, 
+            TIPO_SERVICO: formObra.tipo,
+            ETAPAS: etapasObra 
         };
+
         try {
-            if (editandoId) await api.put(`/admin/atividades/${editandoId}`, payload);
-            else await api.post('/admin/atividades', payload);
-            cancelarEdicao(); carregar(termoBusca);
-        } catch (e) { alert("Erro ao salvar Obra"); }
+            if (editandoId) {
+                await api.put(`/admin/atividades/${editandoId}`, payload);
+                alert("Obra atualizada! (Nota: Etapas não são alteradas na edição básica)");
+            } else {
+                await api.post('/admin/atividades', payload);
+                alert("Obra criada com sucesso! Cronograma gerado.");
+            }
+            cancelarEdicao(); 
+            carregar(termoBusca);
+        } catch (e) { 
+            console.error(e);
+            alert("Erro ao salvar Obra"); 
+        }
     };
 
     const salvarPreco = async () => {
@@ -185,11 +221,39 @@ export default function Config() {
                                 <div><label className="text-xs font-bold text-gray-500">Local</label><input className="w-full p-2 border rounded" value={formObra.local} onChange={e => setFormObra({...formObra, local: e.target.value})} /></div>
                                 <div className="md:col-span-2 lg:col-span-4"><label className="text-xs font-bold text-gray-500">Objetivo</label><input className="w-full p-2 border rounded" value={formObra.objetivo} onChange={e => setFormObra({...formObra, objetivo: e.target.value})} /></div>
 
-                                <div className="md:col-span-2 lg:col-span-1 flex gap-2 mt-2 md:mt-0">
-                                    <button onClick={salvarObra} className={`flex-1 h-10 text-white px-4 rounded flex gap-2 items-center justify-center ${editandoId ? 'bg-yellow-600' : 'bg-blue-600'}`}>
-                                        {editandoId ? <><Edit size={20}/> Salvar</> : <><Plus size={20}/> Adicionar</>}
+                                {!editandoId && (
+                                    <div className="md:col-span-2 lg:col-span-4 bg-white p-3 rounded border border-blue-100">
+                                        <label className="text-xs font-bold text-blue-600 flex gap-1 items-center mb-2"><List size={14}/> Definir Etapas da Obra (Cronograma Inicial)</label>
+                                        <div className="flex gap-2 mb-2">
+                                            <input 
+                                                className="flex-1 p-2 border rounded text-sm uppercase" 
+                                                placeholder="Ex: FUNDAÇÃO, PINTURA, ENTREGA..." 
+                                                value={novaEtapa}
+                                                onChange={e => setNovaEtapa(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && addEtapaLista()}
+                                            />
+                                            <button onClick={addEtapaLista} className="bg-blue-100 text-blue-700 p-2 rounded hover:bg-blue-200"><Plus size={18}/></button>
+                                        </div>
+                                        {etapasObra.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {etapasObra.map((etapa, idx) => (
+                                                    <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 border">
+                                                        {idx + 1}. {etapa}
+                                                        <button onClick={() => removeEtapaLista(idx)} className="text-red-400 hover:text-red-600"><X size={12}/></button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 italic">Nenhuma etapa definida. Adicione ao menos uma para ativar o RDO.</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="md:col-span-2 lg:col-span-4 flex gap-2 mt-2">
+                                    <button onClick={salvarObra} className={`flex-1 h-12 text-white px-4 rounded font-bold flex gap-2 items-center justify-center shadow ${editandoId ? 'bg-yellow-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                                        {editandoId ? <><Edit size={20}/> Salvar Alterações</> : <><Plus size={20}/> Criar Obra e Cronograma</>}
                                     </button>
-                                    {editandoId && <button onClick={cancelarEdicao} className="h-10 px-4 bg-gray-300 text-gray-700 rounded"><X size={20}/></button>}
+                                    {editandoId && <button onClick={cancelarEdicao} className="h-12 px-6 bg-gray-300 text-gray-700 rounded font-bold"><X size={20}/></button>}
                                 </div>
                             </div>
                         )}
