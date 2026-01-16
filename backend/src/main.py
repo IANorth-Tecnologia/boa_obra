@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session, defer 
-from sqlalchemy import or_, desc, func, case
+from sqlalchemy import or_, desc, func, case, cast, Date
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -212,10 +212,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_colaboradores = db.query(models.TFuncionario).filter(models.TFuncionario.STATUS == 1).count()
     total_obras_ativas = db.query(models.TAtividade).count() 
     
-    hoje = datetime.now().date()
-    inicio_mes = hoje.replace(day=1)
+    inicio_mes = Date.replace(day=1)
     
-    rdos_hoje = db.query(models.TServico).filter(func.date(models.TServico.DATAINICIO) == hoje).count()
+    rdos_hoje = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO) == Date).count()
+
     rdos_mes = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
 
     status_counts = db.query(
