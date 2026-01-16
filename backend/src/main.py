@@ -1,17 +1,16 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
-from sqlalchemy.orm import Session, defer 
+from sqlalchemy.orm import Session, defer, joinedload
 from sqlalchemy import or_, desc, func, case, cast, Date
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse 
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from jose import JWTError, jwt
 import io
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
 
 from src.infrastructure.db import models
 from src.infrastructure.db.session import SessionLocal, engine, get_db
@@ -23,9 +22,9 @@ from src.routers import etapas
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Boa Obra api")
+app = FastAPI(title="Boa Obra ERP")
 app.include_router(etapas.router)
-app.include_router(etapas.router)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.exception_handler(RequestValidationError)
@@ -38,6 +37,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Schemas ---
 
 class ItemPrecoRead(BaseModel):
     ID: int
@@ -80,7 +81,7 @@ class StatusUpdate(BaseModel):
     STATUS: int
 
 class LoginData(BaseModel):
-    login: str # Pode ser CPF ou Matrícula
+    login: str 
     senha: str
 
 class SenhaReset(BaseModel):
@@ -121,7 +122,7 @@ class EquipamentoItem(BaseModel):
 
 class RDOCreate(BaseModel):
     ID_ATIVIDADE: int
-    ID_ETAPA: Optional[int] = None
+    ID_ETAPA: Optional[int] = None 
     DATAINICIO: datetime
     DATAFIM: datetime
     DESCRICAO: str
@@ -151,7 +152,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         if user_id is None: raise HTTPException(status_code=401, detail="Token inválido")
     except JWTError:
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
-    
+
     user = db.query(models.TFuncionario).filter(models.TFuncionario.ID == user_id).first()
     if user is None: raise HTTPException(status_code=401, detail="Usuário não encontrado")
 
@@ -161,6 +162,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 
+# --- Rotas GET ---
 
 @app.get("/atividades")
 def listar_atividades(db: Session = Depends(get_db)):
@@ -205,24 +207,22 @@ def ver_foto_funcionario(id: int, db: Session = Depends(get_db)):
 def listar_equipamentos(db: Session = Depends(get_db)):
     return db.query(models.TEquipamento).all()
 
-
-
 @app.get("/admin/dashboard/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
     total_colaboradores = db.query(models.TFuncionario).filter(models.TFuncionario.STATUS == 1).count()
-    total_obras_ativas = db.query(models.TAtividade).count() 
-    
-    inicio_mes = Date.replace(day=1)
-    
-    rdos_hoje = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO) == Date).count()
+    total_obras_ativas = db.query(models.TAtividade).count()
 
+    hoje = datetime.now().date()
+    inicio_mes = hoje.replace(day=1)
+
+    rdos_hoje = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
     rdos_mes = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
 
     status_counts = db.query(
-        models.TServico.STATUS_DIA, 
+        models.TServico.STATUS_DIA,
         func.count(models.TServico.ID)
     ).filter(models.TServico.DATAINICIO >= inicio_mes).group_by(models.TServico.STATUS_DIA).all()
-    
+
     status_dict = {s: c for s, c in status_counts if s}
 
     return {
@@ -244,6 +244,7 @@ def pegar_proposta(id: int, db: Session = Depends(get_db)):
     return prop
 
 # --- ROTAS POST ---
+
 @app.post("/orcamentos")
 def adicionar_item_orcamento(item: OrcamentoCreate, db: Session = Depends(get_db)):
     obra = db.query(models.TAtividade).filter(models.TAtividade.ID == item.ID_ATIVIDADE).first()
@@ -257,10 +258,10 @@ def adicionar_item_orcamento(item: OrcamentoCreate, db: Session = Depends(get_db
 def criar_funcionario(item: FuncionarioCreate, db: Session = Depends(get_db)):
     if db.query(models.TFuncionario).filter((models.TFuncionario.CPF == item.CPF) & (item.CPF != "")).first():
         raise HTTPException(status_code=400, detail="CPF já cadastrado")
-    
+
     novo = models.TFuncionario(
-        NOME=item.NOME.upper(), 
-        FUNCAO=item.FUNCAO.upper(), 
+        NOME=item.NOME.upper(),
+        FUNCAO=item.FUNCAO.upper(),
         MATRICULA=item.MATRICULA,
         CPF=item.CPF,
         PERFIL=item.PERFIL.upper(),
@@ -302,13 +303,12 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"msg": "Equipamento cadastrado"}
 
-
 @app.post("/rdo")
 def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
     novo_rdo = models.TServico(
         CODATIVIDADE=item.ID_ATIVIDADE,
-        ID_ETAPA=item.ID_ETAPA,
-        ID_RESPONSAVEL=current_user.ID, 
+        ID_ETAPA=item.ID_ETAPA, # <-- Salva o ID da Etapa
+        ID_RESPONSAVEL=current_user.ID,
         DESCRICAO=item.DESCRICAO,
         DATAINICIO=item.DATAINICIO,
         DATAFIM=item.DATAFIM,
@@ -319,12 +319,12 @@ def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: mode
     db.add(novo_rdo)
     db.commit()
     db.refresh(novo_rdo)
-    
+
     for op in item.EFETIVO:
         db.add(models.TRDO_Efetivo(ID_SERVICO=novo_rdo.ID, FUNCAO=op.FUNCAO.upper(), QUANTIDADE=op.QUANTIDADE))
     for eq in item.EQUIPAMENTOS:
         db.add(models.TRDO_Equipamento(ID_SERVICO=novo_rdo.ID, DESCRICAO=eq.DESCRICAO.upper(), QUANTIDADE=eq.QUANTIDADE))
-        
+
     db.commit()
     return {"msg": "RDO Criado", "id": novo_rdo.ID}
 
@@ -341,7 +341,6 @@ async def upload_fotos_rdo(id: int, files: List[UploadFile] = File(...), db: Ses
     db.commit()
     return {"msg": f"{count} fotos enviadas"}
 
-
 @app.post("/propostas")
 def criar_proposta(item: PropostaCreate, db: Session = Depends(get_db)):
     nova = models.TProposta(**item.dict(), STATUS="RASCUNHO")
@@ -354,7 +353,7 @@ def criar_proposta(item: PropostaCreate, db: Session = Depends(get_db)):
 def add_item_proposta(id: int, item: PropostaItemCreate, db: Session = Depends(get_db)):
     prop = db.query(models.TProposta).filter(models.TProposta.ID == id).first()
     if not prop: raise HTTPException(404, "Proposta não encontrada")
-    
+
     subtotal = item.QUANTIDADE * item.PRECO_UNITARIO
     novo_item = models.TPropostaItem(
         ID_PROPOSTA=id, DESCRICAO=item.DESCRICAO, UNIDADE=item.UNIDADE,
@@ -365,16 +364,16 @@ def add_item_proposta(id: int, item: PropostaItemCreate, db: Session = Depends(g
     db.commit()
     return {"msg": "Item adicionado"}
 
+
 @app.put("/admin/funcionarios/{id}")
 def atualizar_funcionario(id: int, item: FuncionarioCreate, db: Session = Depends(get_db)):
     db_item = db.query(models.TFuncionario).filter(models.TFuncionario.ID == id).first()
     if not db_item: raise HTTPException(status_code=404, detail="Não encontrado")
 
     if item.CPF and item.CPF != db_item.CPF:
-        # Se mudou o CPF, verifica se já existe em OUTRO usuário
         cpf_usado = db.query(models.TFuncionario).filter(
             models.TFuncionario.CPF == item.CPF,
-            models.TFuncionario.ID != id 
+            models.TFuncionario.ID != id
         ).first()
         if cpf_usado:
             raise HTTPException(status_code=400, detail="Este CPF já pertence a outro colaborador.")
@@ -386,14 +385,14 @@ def atualizar_funcionario(id: int, item: FuncionarioCreate, db: Session = Depend
         ).first()
         if mat_usada:
             raise HTTPException(status_code=400, detail="Esta Matrícula já está em uso.")
-    
+
     db_item.NOME = item.NOME.upper()
     db_item.FUNCAO = item.FUNCAO.upper()
     db_item.MATRICULA = item.MATRICULA
     db_item.CPF = item.CPF
     db_item.GRUPO = item.GRUPO
-    db_item.PERFIL = item.PERFIL.upper() 
-    
+    db_item.PERFIL = item.PERFIL.upper()
+
     db.commit()
     return {"msg": "Dados atualizados com sucesso"}
 
@@ -440,15 +439,14 @@ def atualizar_atividade(id: int, item: AtividadeCreate, db: Session = Depends(ge
 @app.put("/admin/funcionarios/{id}/senha")
 def resetar_senha_funcionario(id: int, item: SenhaReset, db: Session = Depends(get_db)):
     func = db.query(models.TFuncionario).filter(models.TFuncionario.ID == id).first()
-    
+
     if not func:
         raise HTTPException(status_code=404, detail="Funcionário não encontrado")
-    
+
     func.SENHA_HASH = gerar_hash_senha(item.NOVA_SENHA)
     db.commit()
-    
-    return {"msg": f"Senha de {func.NOME} alterada com sucesso."}
 
+    return {"msg": f"Senha de {func.NOME} alterada com sucesso."}
 
 @app.put("/propostas/{id}/status")
 def status_proposta(id: int, status: str, db: Session = Depends(get_db)):
@@ -491,10 +489,10 @@ def deletar_equipamento(id: int, db: Session = Depends(get_db)):
 def del_item_proposta(id_item: int, db: Session = Depends(get_db)):
     item = db.query(models.TPropostaItem).filter(models.TPropostaItem.ID == id_item).first()
     if not item: raise HTTPException(404, "Item não encontrado")
-    
+
     prop = db.query(models.TProposta).filter(models.TProposta.ID == item.ID_PROPOSTA).first()
     prop.VALOR_TOTAL -= item.SUBTOTAL
-    
+
     db.delete(item)
     db.commit()
     return {"msg": "Removido"}
@@ -504,17 +502,17 @@ def del_item_proposta(id_item: int, db: Session = Depends(get_db)):
 def baixar_pdf_rdo(rdo_id: int, db: Session = Depends(get_db)):
     rdo = db.query(models.TServico).filter(models.TServico.ID == rdo_id).first()
     if not rdo: raise HTTPException(status_code=404, detail="RDO não encontrado")
-    
+
     obra = db.query(models.TAtividade).filter(models.TAtividade.ID == rdo.CODATIVIDADE).first()
-    
+
     pdf_buffer = desenhar_pdf(rdo, obra)
-    
+
     data_str = rdo.DATAINICIO.strftime('%Y%m%d')
     nome_arquivo = f"RDO_{rdo_id}_{data_str}.pdf"
-    
+
     return StreamingResponse(
-        pdf_buffer, 
-        media_type="application/pdf", 
+        pdf_buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"}
     )
 
@@ -524,12 +522,12 @@ def listar_todos_rdos(db: Session = Depends(get_db)):
     lista = db.query(models.TServico)\
         .order_by(desc(models.TServico.DATAINICIO))\
         .all()
-    
+
     resultado = []
     for rdo in lista:
         obra = db.query(models.TAtividade).filter(models.TAtividade.ID == rdo.CODATIVIDADE).first()
         nome_obra = obra.DESCRICAO if obra else "Obra não encontrada"
-        
+
         resultado.append({
             "ID": rdo.ID,
             "DATA": rdo.DATAINICIO,
@@ -537,13 +535,13 @@ def listar_todos_rdos(db: Session = Depends(get_db)):
             "STATUS": rdo.STATUS_DIA,
             "DESCRICAO": rdo.DESCRICAO
         })
-        
+
     return resultado
 
 @app.post("/token")
 def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.TFuncionario).filter(
-        (models.TFuncionario.CPF == form_data.username) | 
+        (models.TFuncionario.CPF == form_data.username) |
         (models.TFuncionario.MATRICULA == form_data.username)
     ).first()
 
@@ -552,14 +550,14 @@ def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
 
     if user.STATUS != 1:
         raise HTTPException(status_code=403, detail="Acesso bloqueado. Contate o administrador.")
-    
+
     token = criar_token_acesso(data={"sub": user.NOME, "id": user.ID, "perfil": user.PERFIL})
     return {"access_token": token, "token_type": "bearer", "perfil": user.PERFIL, "nome": user.NOME}
 
 
 @app.get("/dashboard/stats")
 def get_dashboard_stats(
-    db: Session = Depends(get_db), 
+    db: Session = Depends(get_db),
     current_user: models.TFuncionario = Depends(get_current_user)
 ):
     hoje = datetime.now().date()
@@ -568,9 +566,9 @@ def get_dashboard_stats(
     ranking = []
     rdos_hoje_global = 0
     rdos_mes_global = 0
-    
+
     if current_user.PERFIL in ['ADMIN', 'GESTOR']:
-        rdos_hoje_global = db.query(models.TServico).filter(func.date(models.TServico.DATAINICIO) == hoje).count()
+        rdos_hoje_global = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
         rdos_mes_global = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
 
         stats = db.query(
@@ -581,7 +579,7 @@ def get_dashboard_stats(
          .group_by(models.TFuncionario.NOME)\
          .order_by(desc("total"))\
          .all()
-        
+
         ranking = [{"nome": s[0], "total": s[1]} for s in stats]
 
     meus_rdos_mes = db.query(models.TServico).filter(
@@ -611,7 +609,7 @@ def get_dashboard_stats(
 
     return {
         "ranking": ranking,
-        "kpis_globais": { 
+        "kpis_globais": {
             "rdos_hoje": rdos_hoje_global,
             "rdos_mes": rdos_mes_global,
             "equipe": equipe_ativa,
@@ -627,10 +625,10 @@ def get_dashboard_stats(
 def baixar_pdf_orcamento(id_atividade: int, db: Session = Depends(get_db)):
     obra = db.query(models.TAtividade).filter(models.TAtividade.ID == id_atividade).first()
     if not obra: raise HTTPException(404, "Obra não encontrada")
-    
+
     itens_db = db.query(models.TOrcamentoObra).filter_by(ID_ATIVIDADE=id_atividade).all()
     lista_itens = []
-    
+
     for i in itens_db:
         if not i.item_preco: continue
         total = float(i.QUANTIDADE_PREVISTA) * float(i.item_preco.PRECO_UNITARIO)
@@ -643,12 +641,12 @@ def baixar_pdf_orcamento(id_atividade: int, db: Session = Depends(get_db)):
             "UNITARIO": i.item_preco.PRECO_UNITARIO,
             "TOTAL": total
         })
-        
+
     pdf_buffer = desenhar_orcamento(obra, lista_itens)
-    
+
     nome_arquivo = f"Orcamento_{obra.CODATIVIDADE}.pdf"
     return StreamingResponse(
-        pdf_buffer, 
-        media_type="application/pdf", 
+        pdf_buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"}
     )
