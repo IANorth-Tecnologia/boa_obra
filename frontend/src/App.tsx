@@ -7,6 +7,7 @@ import Config from './pages/Config';
 import Orcamentos from './pages/Orcamentos';
 import Layout from './components/Layout'; 
 import Equipe from './pages/Equipe';
+import CronogramaObra from './pages/CronogramaObra';
 
 const PrivateWrapper = ({ roles }: { roles?: string[] }) => {
     const token = localStorage.getItem('token');
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/orcamentos" element={<Orcamentos />} />
             <Route path="/orcamentos/:id" element={<Orcamentos />} />
             <Route path="/equipe" element={<Equipe />} />
+            <Route path="/cronograma" element={<CronogramaObra />} />
             <Route path="/dashboard-gerencia" element={<Dashboard />} />
         </Route>
 

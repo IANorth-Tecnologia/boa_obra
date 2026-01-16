@@ -23,7 +23,7 @@ from src.routers import etapas
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Boa Obra ERP")
+app = FastAPI(title="Boa Obra api")
 app.include_router(etapas.router)
 app.include_router(etapas.router)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -121,6 +121,7 @@ class EquipamentoItem(BaseModel):
 
 class RDOCreate(BaseModel):
     ID_ATIVIDADE: int
+    ID_ETAPA: Optional[int] = None
     DATAINICIO: datetime
     DATAFIM: datetime
     DESCRICAO: str
@@ -306,6 +307,7 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
 def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
     novo_rdo = models.TServico(
         CODATIVIDADE=item.ID_ATIVIDADE,
+        ID_ETAPA=item.ID_ETAPA,
         ID_RESPONSAVEL=current_user.ID, 
         DESCRICAO=item.DESCRICAO,
         DATAINICIO=item.DATAINICIO,
