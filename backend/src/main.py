@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from jose import JWTError, jwt
 import io
+import traceback # ADICIONADO PARA DEBUG
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
@@ -20,6 +21,7 @@ from src.application.use_cases.gerar_pdf import desenhar_pdf, desenhar_orcamento
 from src.auth import verificar_senha, gerar_hash_senha, criar_token_acesso, SECRET_KEY, ALGORITHM
 from src.routers import etapas
 
+# Tenta criar tabelas (se nao existirem)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Boa Obra ERP")
@@ -283,44 +285,63 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
     db.commit()
     return {"msg": "Foto atualizada"}
 
+# --- ROTA COM DEBUGS ADICIONADOS ---
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
-    # 1. Cria a Obra
-    novo = models.TAtividade(
-        CODATIVIDADE=item.CODATIVIDADE, 
-        DESCRICAO=item.DESCRICAO, 
-        CONTRATADA=item.CONTRATADA, 
-        CONTRATANTE=item.CONTRATANTE, 
-        OBJETIVO=item.OBJETIVO, 
-        LOCAL=item.LOCAL, 
-        FISCAL=item.FISCAL, 
-        TIPO_SERVICO=item.TIPO_SERVICO, 
-        DATA_ABERTURA=datetime.now(), 
-        STATUSATIVIDADE=1, 
-        CODLOCALSERVICO=1
-    )
-    db.add(novo)
-    db.commit()
-    db.refresh(novo)
-
-    if item.ETAPAS:
-        lista_objetos = []
-        for index, nome_etapa in enumerate(item.ETAPAS):
-            etapa = models.TEtapaObra(
-                ID_LOCAL=novo.ID,
-                NOME_ETAPA=nome_etapa.upper(), 
-                ORDEM=index + 1,
-                PERCENTUAL=0.0,
-                STATUS="PENDENTE",
-                DATA_INICIO=datetime.now(),
-                DATA_FIM=datetime.now()
-            )
-            lista_objetos.append(etapa)
-        
-        db.add_all(lista_objetos)
+    print(f"🚀 [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
+    try:
+        # 1. Cria a Obra
+        print("🛠 [DEBUG] Criando objeto TAtividade...")
+        novo = models.TAtividade(
+            CODATIVIDADE=item.CODATIVIDADE, 
+            DESCRICAO=item.DESCRICAO, 
+            CONTRATADA=item.CONTRATADA, 
+            CONTRATANTE=item.CONTRATANTE, 
+            OBJETIVO=item.OBJETIVO, 
+            LOCAL=item.LOCAL, 
+            FISCAL=item.FISCAL, 
+            TIPO_SERVICO=item.TIPO_SERVICO, 
+            DATA_ABERTURA=datetime.now(), 
+            STATUSATIVIDADE=1, 
+            CODLOCALSERVICO=1
+        )
+        db.add(novo)
+        print("💾 [DEBUG] Commitando TAtividade...")
         db.commit()
+        db.refresh(novo)
+        print(f"✅ [DEBUG] Atividade criada com ID: {novo.ID}")
 
-    return {"msg": "Obra e Etapas Criadas com Sucesso"}
+        # 2. Cria as Etapas
+        if item.ETAPAS:
+            print(f"📋 [DEBUG] Processando {len(item.ETAPAS)} etapas...")
+            lista_objetos = []
+            for index, nome_etapa in enumerate(item.ETAPAS):
+                print(f"   🔸 [DEBUG] Criando etapa {index+1}: {nome_etapa}")
+                etapa = models.TEtapaObra(
+                    ID_LOCAL=novo.ID,
+                    NOME_ETAPA=nome_etapa.upper(), 
+                    ORDEM=index + 1,
+                    PERCENTUAL=0.0,
+                    STATUS="PENDENTE",
+                    DATA_INICIO=datetime.now(),
+                    DATA_FIM=datetime.now()
+                )
+                lista_objetos.append(etapa)
+            
+            print("💾 [DEBUG] Adicionando etapas ao banco...")
+            db.add_all(lista_objetos)
+            db.commit()
+            print("✅ [DEBUG] Etapas salvas com sucesso!")
+        else:
+            print("ℹ️ [DEBUG] Nenhuma etapa enviada.")
+
+        return {"msg": "Obra e Etapas Criadas com Sucesso"}
+
+    except Exception as e:
+        print("❌ [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
+        print(e)
+        traceback.print_exc() # Isso vai imprimir o erro exato no log do Docker
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/admin/precos")
