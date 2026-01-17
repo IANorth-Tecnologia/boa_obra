@@ -123,7 +123,7 @@ class TPropostaItem(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True)
     ID_PROPOSTA = Column(Integer, ForeignKey('TPROPOSTA.ID'))
     DESCRICAO = Column(String(200))
-    UNIDADE = Column(String(10))
+    UNIDADE = Column(String(100))
     QUANTIDADE = Column(Float)
     PRECO_UNITARIO = Column(Float)
     SUBTOTAL = Column(Float)
@@ -132,7 +132,7 @@ class TPropostaItem(Base):
 
 class TEtapaObra(Base):
     """
-    Tabela que define as fases/etapas de cada Obra (baseado no seu PDF).
+    Tabela que define as fases/etapas de cada Obra.
     """
     __tablename__ = 'TETAPA_OBRA'
     ID = Column(Integer, primary_key=True, autoincrement=True)
@@ -141,7 +141,11 @@ class TEtapaObra(Base):
     NOME_ETAPA = Column(String(150), nullable=False) 
     ORDEM = Column(Integer, default=1)               
     STATUS = Column(String(50), default="PENDENTE")  
-    PERCENTUAL = Column(Integer, default=0)         
+    PERCENTUAL = Column(Integer, default=0)
+    
+    # NOVAS COLUNAS ADICIONADAS PARA CORRIGIR O ERRO
+    DATA_INICIO = Column(DateTime, nullable=True)
+    DATA_FIM = Column(DateTime, nullable=True)
     
     obra = relationship("TLocalServico", back_populates="etapas")
     apontamentos = relationship("TRDO_Detalhado", back_populates="etapa")
@@ -165,28 +169,16 @@ class TRDO_Detalhado(Base):
     funcionario = relationship("TFuncionario")
 
 class TEtapaPadrao(Base):
-    """
-    Catálogo de etapas padrão (as 14 do fluxo).
-    Não confundir com TEtapaObra (que é a etapa vinculada a uma obra específica).
-    """
     __tablename__ = "TETAPA_PADRAO"
-
     ID = Column(Integer, primary_key=True, index=True)
     NOME = Column(String(100), nullable=False)
     ORDEM = Column(Integer, default=0)
-
     servicos = relationship("TServicoPadrao", back_populates="etapa")
 
 class TServicoPadrao(Base):
-    """
-    Catálogo de serviços possíveis dentro de uma etapa.
-    Ex: 'Lançamento de Cabos' dentro de 'Cabeamento'.
-    """
     __tablename__ = "TSERVICO_PADRAO"
-
     ID = Column(Integer, primary_key=True, index=True)
     NOME = Column(String(200), nullable=False)
     UNIDADE = Column(String(20), nullable=True)
     ETAPA_ID = Column(Integer, ForeignKey("TETAPA_PADRAO.ID"))
-
     etapa = relationship("TEtapaPadrao", back_populates="servicos")
