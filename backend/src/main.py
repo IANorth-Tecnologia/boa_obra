@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from jose import JWTError, jwt
 import io
-import traceback # ADICIONADO PARA DEBUG
+import traceback
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
@@ -21,7 +21,7 @@ from src.application.use_cases.gerar_pdf import desenhar_pdf, desenhar_orcamento
 from src.auth import verificar_senha, gerar_hash_senha, criar_token_acesso, SECRET_KEY, ALGORITHM
 from src.routers import etapas
 
-# Tenta criar tabelas (se nao existirem)
+# Garante que as tabelas existam (cria se não houver)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Boa Obra ERP")
@@ -285,7 +285,7 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
     db.commit()
     return {"msg": "Foto atualizada"}
 
-# --- ROTA COM DEBUGS ADICIONADOS ---
+# --- ROTA COM DEBUGS E CORREÇÃO DE CHAVE ---
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
     print(f"🚀 [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
@@ -318,7 +318,8 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
             for index, nome_etapa in enumerate(item.ETAPAS):
                 print(f"   🔸 [DEBUG] Criando etapa {index+1}: {nome_etapa}")
                 etapa = models.TEtapaObra(
-                    ID_LOCAL=novo.ID,
+                    # --- CORREÇÃO AQUI: ID_ATIVIDADE EM VEZ DE ID_LOCAL ---
+                    ID_ATIVIDADE=novo.ID, 
                     NOME_ETAPA=nome_etapa.upper(), 
                     ORDEM=index + 1,
                     PERCENTUAL=0.0,
@@ -340,7 +341,7 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
     except Exception as e:
         print("❌ [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
         print(e)
-        traceback.print_exc() # Isso vai imprimir o erro exato no log do Docker
+        traceback.print_exc() 
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -9,7 +9,7 @@ class TLocalServico(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True)
     DESCRICAO = Column(String(100))
     atividades = relationship("TAtividade", back_populates="local")
-    etapas = relationship("TEtapaObra", back_populates="obra", cascade="all, delete-orphan")
+    # Etapas agora pertencem à Atividade, não ao Local Geral
 
 class TAtividade(Base):
     __tablename__ = 'TATIVIDADE'
@@ -25,8 +25,11 @@ class TAtividade(Base):
     DATA_ABERTURA = Column(DateTime)
     STATUSATIVIDADE = Column(Integer)
     CODLOCALSERVICO = Column(Integer, ForeignKey('TLOCALSERVICO.ID'), default=1)
+    
     local = relationship("TLocalServico", back_populates="atividades")
     orcamentos = relationship("TOrcamentoObra", back_populates="atividade")
+    # NOVA RELAÇÃO: Uma obra tem várias etapas
+    etapas = relationship("TEtapaObra", back_populates="atividade", cascade="all, delete-orphan")
 
 class TItemPreco(Base):
     __tablename__ = 'TITEMPRECO'
@@ -133,38 +136,34 @@ class TPropostaItem(Base):
 class TEtapaObra(Base):
     """
     Tabela que define as fases/etapas de cada Obra.
+    CORRIGIDO: Agora aponta para TATIVIDADE e não TLOCALSERVICO
     """
     __tablename__ = 'TETAPA_OBRA'
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    ID_LOCAL = Column(Integer, ForeignKey('TLOCALSERVICO.ID')) 
+    
+    # MUDANÇA CRUCIAL AQUI: ForeignKey aponta para TATIVIDADE.ID
+    ID_ATIVIDADE = Column(Integer, ForeignKey('TATIVIDADE.ID')) 
     
     NOME_ETAPA = Column(String(150), nullable=False) 
     ORDEM = Column(Integer, default=1)               
     STATUS = Column(String(50), default="PENDENTE")  
     PERCENTUAL = Column(Integer, default=0)
-    
-    # NOVAS COLUNAS ADICIONADAS PARA CORRIGIR O ERRO
     DATA_INICIO = Column(DateTime, nullable=True)
     DATA_FIM = Column(DateTime, nullable=True)
     
-    obra = relationship("TLocalServico", back_populates="etapas")
+    # Relacionamento atualizado
+    atividade = relationship("TAtividade", back_populates="etapas")
     apontamentos = relationship("TRDO_Detalhado", back_populates="etapa")
 
 class TRDO_Detalhado(Base):
-    """
-    O 'Ponto Eletrônico' da tarefa. Registra início, pausas e conclusões.
-    """
     __tablename__ = 'TRDO_DETALHADO'
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    
     ID_ETAPA = Column(Integer, ForeignKey('TETAPA_OBRA.ID'))
     ID_FUNCIONARIO = Column(Integer, ForeignKey('TFUNCIONARIO.ID'))
-    
     DATA_HORA_REGISTRO = Column(DateTime, default=datetime.now)
     TIPO_EVENTO = Column(String(50)) 
     OBSERVACAO = Column(Text, nullable=True)
     FOTO = Column(LargeBinary, nullable=True) 
-    
     etapa = relationship("TEtapaObra", back_populates="apontamentos")
     funcionario = relationship("TFuncionario")
 
