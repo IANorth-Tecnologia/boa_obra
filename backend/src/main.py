@@ -116,7 +116,6 @@ class GrupoUpdate(BaseModel):
 class EfetivoItem(BaseModel):
     FUNCAO: str
     QUANTIDADE: int
-    TIPO: str = "DIRETO" 
 
 class EquipamentoItem(BaseModel):
     DESCRICAO: str
@@ -147,6 +146,12 @@ class PropostaItemCreate(BaseModel):
     PRECO_UNITARIO: float
 
 class RDOFinalizacao(BaseModel):
+    STATUS: str
+    CLIMA_MANHA: str
+    CLIMA_TARDE: str
+    CONDICAO_AREA: str
+    DESCRICAO: str
+    OBSERVACOES: str
     EFETIVO: List[EfetivoItem]
     EQUIPAMENTOS: List[EquipamentoItem]
 
@@ -288,9 +293,9 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
 
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
-    print(f" [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
+    print(f"🚀 [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
     try:
-        print(" [DEBUG] Criando objeto TAtividade...")
+        print("🛠 [DEBUG] Criando objeto TAtividade...")
         novo = models.TAtividade(
             CODATIVIDADE=item.CODATIVIDADE, 
             DESCRICAO=item.DESCRICAO, 
@@ -307,13 +312,13 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
         db.add(novo)
         db.commit()
         db.refresh(novo)
-        print(f" [DEBUG] Atividade criada com ID: {novo.ID}")
+        print(f"✅ [DEBUG] Atividade criada com ID: {novo.ID}")
 
         if item.ETAPAS:
-            print(f" [DEBUG] Processando {len(item.ETAPAS)} etapas...")
+            print(f"📋 [DEBUG] Processando {len(item.ETAPAS)} etapas...")
             lista_objetos = []
             for index, nome_etapa in enumerate(item.ETAPAS):
-                print(f"    [DEBUG] Criando etapa {index+1}: {nome_etapa}")
+                print(f"   🔸 [DEBUG] Criando etapa {index+1}: {nome_etapa}")
                 etapa = models.TEtapaObra(
                     ID_ATIVIDADE=novo.ID, 
                     NOME_ETAPA=nome_etapa.upper(), 
@@ -325,15 +330,15 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
                 )
                 lista_objetos.append(etapa)
             
-            print(" [DEBUG] Adicionando etapas ao banco...")
+            print("💾 [DEBUG] Adicionando etapas ao banco...")
             db.add_all(lista_objetos)
             db.commit()
-            print(" [DEBUG] Etapas salvas com sucesso!")
+            print("✅ [DEBUG] Etapas salvas com sucesso!")
         
         return {"msg": "Obra e Etapas Criadas com Sucesso"}
 
     except Exception as e:
-        print(" [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
+        print("❌ [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
         print(e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -465,6 +470,14 @@ def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Dep
     if not rdo:
         raise HTTPException(404, "RDO não encontrado para finalização")
 
+    rdo.STATUS_DIA = dados.STATUS
+    rdo.DESCRICAO = dados.DESCRICAO 
+    rdo.NOTA = dados.OBSERVACOES
+    
+    rdo.PENDENCIA = f"CLIMA: {dados.CLIMA_MANHA}/{dados.CLIMA_TARDE} | AREA: {dados.CONDICAO_AREA}"
+    
+    rdo.DATAFIM = datetime.now()
+
     db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
     db.query(models.TRDO_Equipamento).filter_by(ID_SERVICO=rdo_id).delete()
 
@@ -472,8 +485,7 @@ def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Dep
         db.add(models.TRDO_Efetivo(
             ID_SERVICO=rdo_id, 
             FUNCAO=op.FUNCAO.upper(), 
-            QUANTIDADE=op.QUANTIDADE,
-            TIPO=op.TIPO 
+            QUANTIDADE=op.QUANTIDADE
         ))
     
     for eq in dados.EQUIPAMENTOS:
@@ -505,7 +517,7 @@ def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: mode
     db.refresh(novo_rdo)
 
     for op in item.EFETIVO:
-        db.add(models.TRDO_Efetivo(ID_SERVICO=novo_rdo.ID, FUNCAO=op.FUNCAO.upper(), QUANTIDADE=op.QUANTIDADE, TIPO=op.TIPO))
+        db.add(models.TRDO_Efetivo(ID_SERVICO=novo_rdo.ID, FUNCAO=op.FUNCAO.upper(), QUANTIDADE=op.QUANTIDADE))
     for eq in item.EQUIPAMENTOS:
         db.add(models.TRDO_Equipamento(ID_SERVICO=novo_rdo.ID, DESCRICAO=eq.DESCRICAO.upper(), QUANTIDADE=eq.QUANTIDADE))
 
@@ -756,7 +768,7 @@ def get_dashboard_stats(
 
     if current_user.PERFIL in ['ADMIN', 'GESTOR']:
         rdos_hoje_global = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
-        rdos_mes_global = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
+        rdos_mes = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
 
         stats = db.query(
             models.TFuncionario.NOME,
