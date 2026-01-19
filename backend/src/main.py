@@ -116,6 +116,7 @@ class GrupoUpdate(BaseModel):
 class EfetivoItem(BaseModel):
     FUNCAO: str
     QUANTIDADE: int
+    TIPO: str = "DIRETO" 
 
 class EquipamentoItem(BaseModel):
     DESCRICAO: str
@@ -144,6 +145,10 @@ class PropostaItemCreate(BaseModel):
     UNIDADE: str
     QUANTIDADE: float
     PRECO_UNITARIO: float
+
+class RDOFinalizacao(BaseModel):
+    EFETIVO: List[EfetivoItem]
+    EQUIPAMENTOS: List[EquipamentoItem]
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -243,7 +248,6 @@ def pegar_proposta(id: int, db: Session = Depends(get_db)):
     if not prop: raise HTTPException(404, "Proposta não encontrada")
     return prop
 
-# --- ROTAS POST ---
 
 @app.post("/orcamentos")
 def adicionar_item_orcamento(item: OrcamentoCreate, db: Session = Depends(get_db)):
@@ -284,9 +288,9 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
 
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
-    print(f"[DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
+    print(f" [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
     try:
-        print("[DEBUG] Criando objeto TAtividade...")
+        print(" [DEBUG] Criando objeto TAtividade...")
         novo = models.TAtividade(
             CODATIVIDADE=item.CODATIVIDADE, 
             DESCRICAO=item.DESCRICAO, 
@@ -303,13 +307,13 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
         db.add(novo)
         db.commit()
         db.refresh(novo)
-        print(f"[DEBUG] Atividade criada com ID: {novo.ID}")
+        print(f" [DEBUG] Atividade criada com ID: {novo.ID}")
 
         if item.ETAPAS:
-            print(f"[DEBUG] Processando {len(item.ETAPAS)} etapas...")
+            print(f" [DEBUG] Processando {len(item.ETAPAS)} etapas...")
             lista_objetos = []
             for index, nome_etapa in enumerate(item.ETAPAS):
-                print(f"[DEBUG] Criando etapa {index+1}: {nome_etapa}")
+                print(f"    [DEBUG] Criando etapa {index+1}: {nome_etapa}")
                 etapa = models.TEtapaObra(
                     ID_ATIVIDADE=novo.ID, 
                     NOME_ETAPA=nome_etapa.upper(), 
@@ -321,15 +325,15 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
                 )
                 lista_objetos.append(etapa)
             
-            print("[DEBUG] Adicionando etapas ao banco...")
+            print(" [DEBUG] Adicionando etapas ao banco...")
             db.add_all(lista_objetos)
             db.commit()
-            print("[DEBUG] Etapas salvas com sucesso!")
+            print(" [DEBUG] Etapas salvas com sucesso!")
         
         return {"msg": "Obra e Etapas Criadas com Sucesso"}
 
     except Exception as e:
-        print("[DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
+        print(" [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
         print(e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -349,11 +353,145 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"msg": "Equipamento cadastrado"}
 
+
+@app.post("/rdo/evento")
+async def registrar_evento_rdo(
+    ID_ATIVIDADE: int = Form(...),
+    ID_ETAPA: int = Form(...),
+    TIPO_EVENTO: str = Form(...),
+    OBSERVACAO: str = Form(""),
+    file: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    current_user: models.TFuncionario = Depends(get_current_user)
+):
+    hoje = datetime.now().date()
+    id_etapa_db = ID_ETAPA if ID_ETAPA > 0 else None
+    
+    query = db.query(models.TServico).filter(
+        models.TServico.CODATIVIDADE == ID_ATIVIDADE,
+        cast(models.TServico.DATAINICIO, Date) == hoje
+    )
+    
+    if id_etapa_db:
+        query = query.filter(models.TServico.ID_ETAPA == id_etapa_db)
+    else:
+        query = query.filter(models.TServico.ID_ETAPA == None)
+        
+    rdo = query.first()
+
+    if not rdo:
+        if TIPO_EVENTO == "INICIO":
+            rdo = models.TServico(
+                CODATIVIDADE=ID_ATIVIDADE,
+                ID_ETAPA=id_etapa_db,
+                ID_RESPONSAVEL=current_user.ID,
+                DESCRICAO=f"Acompanhamento Diário" if id_etapa_db else "Diário Geral / Administrativo",
+                DATAINICIO=datetime.now(),
+                STATUS_DIA="EM ANDAMENTO"
+            )
+            db.add(rdo)
+            db.commit()
+            db.refresh(rdo)
+        else:
+            raise HTTPException(400, "É necessário INICIAR antes de registrar outros eventos.")
+
+    foto_bytes = await file.read() if file else None
+
+    novo_evento = models.TRDO_Detalhado(
+        ID_ETAPA=id_etapa_db,
+        ID_FUNCIONARIO=current_user.ID,
+        DATA_HORA_REGISTRO=datetime.now(),
+        TIPO_EVENTO=TIPO_EVENTO,
+        OBSERVACAO=OBSERVACAO,
+        FOTO=foto_bytes
+    )
+    db.add(novo_evento)
+
+    if TIPO_EVENTO == "PAUSA":
+        rdo.STATUS_DIA = "PAUSADO"
+    elif TIPO_EVENTO == "RETOMADA":
+        rdo.STATUS_DIA = "EM ANDAMENTO"
+    elif TIPO_EVENTO == "CONCLUSAO":
+        rdo.STATUS_DIA = "CONCLUIDO"
+        rdo.DATAFIM = datetime.now()
+
+    db.commit()
+    return {"msg": "Evento registrado", "status_atual": rdo.STATUS_DIA, "rdo_id": rdo.ID}
+
+@app.get("/rdo/timeline/{id_atividade}/{id_etapa}")
+def obter_timeline(id_atividade: int, id_etapa: int, db: Session = Depends(get_db)):
+    hoje = datetime.now().date()
+    id_etapa_db = id_etapa if id_etapa > 0 else None
+    
+    query_eventos = db.query(models.TRDO_Detalhado).filter(
+        cast(models.TRDO_Detalhado.DATA_HORA_REGISTRO, Date) == hoje
+    )
+    
+    query_rdo = db.query(models.TServico).filter(
+        models.TServico.CODATIVIDADE == id_atividade,
+        cast(models.TServico.DATAINICIO, Date) == hoje
+    )
+
+    if id_etapa_db:
+        query_eventos = query_eventos.filter(models.TRDO_Detalhado.ID_ETAPA == id_etapa_db)
+        query_rdo = query_rdo.filter(models.TServico.ID_ETAPA == id_etapa_db)
+    else:
+        query_eventos = query_eventos.filter(models.TRDO_Detalhado.ID_ETAPA == None)
+        query_rdo = query_rdo.filter(models.TServico.ID_ETAPA == None)
+
+    eventos = query_eventos.order_by(desc(models.TRDO_Detalhado.DATA_HORA_REGISTRO)).all()
+    rdo = query_rdo.first()
+
+    status_atual = rdo.STATUS_DIA if rdo else "NAO_INICIADO"
+
+    timeline = []
+    for ev in eventos:
+        timeline.append({
+            "hora": ev.DATA_HORA_REGISTRO.strftime("%H:%M"),
+            "tipo": ev.TIPO_EVENTO,
+            "obs": ev.OBSERVACAO,
+            "tem_foto": ev.FOTO is not None
+        })
+
+    return {
+        "status": status_atual,
+        "timeline": timeline,
+        "rdo_id": rdo.ID if rdo else None
+    }
+
+@app.put("/rdo/{rdo_id}/finalizar")
+def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Depends(get_db)):
+    rdo = db.query(models.TServico).filter(models.TServico.ID == rdo_id).first()
+    if not rdo:
+        raise HTTPException(404, "RDO não encontrado para finalização")
+
+    db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
+    db.query(models.TRDO_Equipamento).filter_by(ID_SERVICO=rdo_id).delete()
+
+    for op in dados.EFETIVO:
+        db.add(models.TRDO_Efetivo(
+            ID_SERVICO=rdo_id, 
+            FUNCAO=op.FUNCAO.upper(), 
+            QUANTIDADE=op.QUANTIDADE,
+            TIPO=op.TIPO 
+        ))
+    
+    for eq in dados.EQUIPAMENTOS:
+        db.add(models.TRDO_Equipamento(
+            ID_SERVICO=rdo_id, 
+            DESCRICAO=eq.DESCRICAO.upper(), 
+            QUANTIDADE=eq.QUANTIDADE
+        ))
+
+    db.commit()
+    return {"msg": "RDO Finalizado com sucesso!"}
+
+
 @app.post("/rdo")
 def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
     novo_rdo = models.TServico(
         CODATIVIDADE=item.ID_ATIVIDADE,
-        ID_ETAPA=item.ID_ETAPA,
+        ID_ETAPA=item.ID_ETAPA if item.ID_ETAPA and item.ID_ETAPA > 0 else None,
         ID_RESPONSAVEL=current_user.ID,
         DESCRICAO=item.DESCRICAO,
         DATAINICIO=item.DATAINICIO,
@@ -367,7 +505,7 @@ def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: mode
     db.refresh(novo_rdo)
 
     for op in item.EFETIVO:
-        db.add(models.TRDO_Efetivo(ID_SERVICO=novo_rdo.ID, FUNCAO=op.FUNCAO.upper(), QUANTIDADE=op.QUANTIDADE))
+        db.add(models.TRDO_Efetivo(ID_SERVICO=novo_rdo.ID, FUNCAO=op.FUNCAO.upper(), QUANTIDADE=op.QUANTIDADE, TIPO=op.TIPO))
     for eq in item.EQUIPAMENTOS:
         db.add(models.TRDO_Equipamento(ID_SERVICO=novo_rdo.ID, DESCRICAO=eq.DESCRICAO.upper(), QUANTIDADE=eq.QUANTIDADE))
 
@@ -516,12 +654,10 @@ def deletar_funcionario(id: int, db: Session = Depends(get_db)):
 @app.delete("/admin/atividades/{id}")
 def deletar_atividade(id: int, db: Session = Depends(get_db)):
     item = db.query(models.TAtividade).filter(models.TAtividade.ID == id).first()
-    
     if item:
         db.delete(item)
         db.commit()
         return {"msg": "Removida com sucesso"}
-    
     raise HTTPException(status_code=404, detail="Obra não encontrada")
 
 @app.delete("/admin/precos/{id}")

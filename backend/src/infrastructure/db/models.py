@@ -9,7 +9,6 @@ class TLocalServico(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True)
     DESCRICAO = Column(String(100))
     atividades = relationship("TAtividade", back_populates="local")
-    # Etapas agora pertencem à Atividade, não ao Local Geral
 
 class TAtividade(Base):
     __tablename__ = 'TATIVIDADE'
@@ -98,6 +97,8 @@ class TRDO_Efetivo(Base):
     ID_SERVICO = Column(Integer, ForeignKey('TSERVICO.ID'))
     FUNCAO = Column(String(100))
     QUANTIDADE = Column(Integer)
+    # CAMPO NOVO
+    TIPO = Column(String(50), default="DIRETO") 
     servico = relationship("TServico", back_populates="efetivo")
 
 class TRDO_Equipamento(Base):
@@ -125,7 +126,7 @@ class TPropostaItem(Base):
     ID = Column(Integer, primary_key=True, autoincrement=True)
     ID_PROPOSTA = Column(Integer, ForeignKey('TPROPOSTA.ID'))
     DESCRICAO = Column(String(200))
-    UNIDADE = Column(String(100))
+    UNIDADE = Column(String(10))
     QUANTIDADE = Column(Float)
     PRECO_UNITARIO = Column(Float)
     SUBTOTAL = Column(Float)
@@ -133,12 +134,8 @@ class TPropostaItem(Base):
 
 
 class TEtapaObra(Base):
-    """
-    Tabela que define as fases/etapas de cada Obra.
-    """
     __tablename__ = 'TETAPA_OBRA'
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    
     ID_ATIVIDADE = Column(Integer, ForeignKey('TATIVIDADE.ID')) 
     
     NOME_ETAPA = Column(String(150), nullable=False) 
@@ -154,12 +151,15 @@ class TEtapaObra(Base):
 class TRDO_Detalhado(Base):
     __tablename__ = 'TRDO_DETALHADO'
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    ID_ETAPA = Column(Integer, ForeignKey('TETAPA_OBRA.ID'))
+    
+    ID_ETAPA = Column(Integer, ForeignKey('TETAPA_OBRA.ID'), nullable=True)
     ID_FUNCIONARIO = Column(Integer, ForeignKey('TFUNCIONARIO.ID'))
+    
     DATA_HORA_REGISTRO = Column(DateTime, default=datetime.now)
     TIPO_EVENTO = Column(String(50)) 
     OBSERVACAO = Column(Text, nullable=True)
     FOTO = Column(LargeBinary, nullable=True) 
+    
     etapa = relationship("TEtapaObra", back_populates="apontamentos")
     funcionario = relationship("TFuncionario")
 
