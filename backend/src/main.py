@@ -21,7 +21,6 @@ from src.application.use_cases.gerar_pdf import desenhar_pdf, desenhar_orcamento
 from src.auth import verificar_senha, gerar_hash_senha, criar_token_acesso, SECRET_KEY, ALGORITHM
 from src.routers import etapas
 
-# Garante que as tabelas existam (cria se não houver)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Boa Obra ERP")
@@ -40,7 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Schemas ---
 
 class ItemPrecoRead(BaseModel):
     ID: int
@@ -165,7 +163,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 
-# --- Rotas GET ---
 
 @app.get("/atividades")
 def listar_atividades(db: Session = Depends(get_db)):
@@ -285,13 +282,11 @@ async def upload_foto_funcionario(id: int, file: UploadFile = File(...), db: Ses
     db.commit()
     return {"msg": "Foto atualizada"}
 
-# --- ROTA COM DEBUGS E CORREÇÃO DE CHAVE ---
 @app.post("/admin/atividades")
 def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
-    print(f"🚀 [DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
+    print(f"[DEBUG] Iniciando criação de atividade: {item.CODATIVIDADE}")
     try:
-        # 1. Cria a Obra
-        print("🛠 [DEBUG] Criando objeto TAtividade...")
+        print("[DEBUG] Criando objeto TAtividade...")
         novo = models.TAtividade(
             CODATIVIDADE=item.CODATIVIDADE, 
             DESCRICAO=item.DESCRICAO, 
@@ -306,19 +301,16 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
             CODLOCALSERVICO=1
         )
         db.add(novo)
-        print("💾 [DEBUG] Commitando TAtividade...")
         db.commit()
         db.refresh(novo)
-        print(f"✅ [DEBUG] Atividade criada com ID: {novo.ID}")
+        print(f"[DEBUG] Atividade criada com ID: {novo.ID}")
 
-        # 2. Cria as Etapas
         if item.ETAPAS:
-            print(f"📋 [DEBUG] Processando {len(item.ETAPAS)} etapas...")
+            print(f"[DEBUG] Processando {len(item.ETAPAS)} etapas...")
             lista_objetos = []
             for index, nome_etapa in enumerate(item.ETAPAS):
-                print(f"   🔸 [DEBUG] Criando etapa {index+1}: {nome_etapa}")
+                print(f"[DEBUG] Criando etapa {index+1}: {nome_etapa}")
                 etapa = models.TEtapaObra(
-                    # --- CORREÇÃO AQUI: ID_ATIVIDADE EM VEZ DE ID_LOCAL ---
                     ID_ATIVIDADE=novo.ID, 
                     NOME_ETAPA=nome_etapa.upper(), 
                     ORDEM=index + 1,
@@ -329,19 +321,17 @@ def criar_atividade(item: AtividadeCreate, db: Session = Depends(get_db)):
                 )
                 lista_objetos.append(etapa)
             
-            print("💾 [DEBUG] Adicionando etapas ao banco...")
+            print("[DEBUG] Adicionando etapas ao banco...")
             db.add_all(lista_objetos)
             db.commit()
-            print("✅ [DEBUG] Etapas salvas com sucesso!")
-        else:
-            print("ℹ️ [DEBUG] Nenhuma etapa enviada.")
-
+            print("[DEBUG] Etapas salvas com sucesso!")
+        
         return {"msg": "Obra e Etapas Criadas com Sucesso"}
 
     except Exception as e:
-        print("❌ [DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
+        print("[DEBUG] ERRO FATAL AO CRIAR ATIVIDADE:")
         print(e)
-        traceback.print_exc() 
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -363,7 +353,7 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
 def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
     novo_rdo = models.TServico(
         CODATIVIDADE=item.ID_ATIVIDADE,
-        ID_ETAPA=item.ID_ETAPA, # <-- Salva o ID da Etapa
+        ID_ETAPA=item.ID_ETAPA,
         ID_RESPONSAVEL=current_user.ID,
         DESCRICAO=item.DESCRICAO,
         DATAINICIO=item.DATAINICIO,
@@ -525,9 +515,14 @@ def deletar_funcionario(id: int, db: Session = Depends(get_db)):
 
 @app.delete("/admin/atividades/{id}")
 def deletar_atividade(id: int, db: Session = Depends(get_db)):
-    db.query(models.TAtividade).filter(models.TAtividade.ID == id).delete()
-    db.commit()
-    return {"msg": "Removida"}
+    item = db.query(models.TAtividade).filter(models.TAtividade.ID == id).first()
+    
+    if item:
+        db.delete(item)
+        db.commit()
+        return {"msg": "Removida com sucesso"}
+    
+    raise HTTPException(status_code=404, detail="Obra não encontrada")
 
 @app.delete("/admin/precos/{id}")
 def deletar_preco(id: int, db: Session = Depends(get_db)):

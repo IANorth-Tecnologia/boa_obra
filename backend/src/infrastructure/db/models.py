@@ -28,7 +28,6 @@ class TAtividade(Base):
     
     local = relationship("TLocalServico", back_populates="atividades")
     orcamentos = relationship("TOrcamentoObra", back_populates="atividade")
-    # NOVA RELAÇÃO: Uma obra tem várias etapas
     etapas = relationship("TEtapaObra", back_populates="atividade", cascade="all, delete-orphan")
 
 class TItemPreco(Base):
@@ -136,12 +135,10 @@ class TPropostaItem(Base):
 class TEtapaObra(Base):
     """
     Tabela que define as fases/etapas de cada Obra.
-    CORRIGIDO: Agora aponta para TATIVIDADE e não TLOCALSERVICO
     """
     __tablename__ = 'TETAPA_OBRA'
     ID = Column(Integer, primary_key=True, autoincrement=True)
     
-    # MUDANÇA CRUCIAL AQUI: ForeignKey aponta para TATIVIDADE.ID
     ID_ATIVIDADE = Column(Integer, ForeignKey('TATIVIDADE.ID')) 
     
     NOME_ETAPA = Column(String(150), nullable=False) 
@@ -151,7 +148,6 @@ class TEtapaObra(Base):
     DATA_INICIO = Column(DateTime, nullable=True)
     DATA_FIM = Column(DateTime, nullable=True)
     
-    # Relacionamento atualizado
     atividade = relationship("TAtividade", back_populates="etapas")
     apontamentos = relationship("TRDO_Detalhado", back_populates="etapa")
 

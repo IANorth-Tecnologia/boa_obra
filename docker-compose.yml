@@ -9,7 +9,16 @@ services:
       - dados_persistentes:/app/dados
       - ./backend/assets:/app/src/assets
     environment:
+      - DB_TYPE=mssql
+      - DB_SERVER=host.docker.internal
+      - DB_NAME=BD_App
+      - DB_USER=sysdba
+      - DB_PASSWORD=masterkey
+
       - SECRET_KEY=sua_chave_secreta_super_segura
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     ports:
       - "8032:8000"  
 
