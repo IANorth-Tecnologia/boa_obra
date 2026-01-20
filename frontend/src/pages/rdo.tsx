@@ -171,32 +171,40 @@ export default function RDO() {
         }
     };
 
+
     const confirmarEventoPausa = async () => {
-        if (!obs || !fotoEvento) return alert('Preencha observação e foto.');
+        if (!obs) return alert('Preencha a observação.');
         setLoading(true);
         try {
             const formData = new FormData();
-            formData.append('ID_ATIVIDADE', obraSelecionada);
-            formData.append('ID_ETAPA', etapaSelecionada.ID);
+            formData.append('ID_ATIVIDADE', String(obraSelecionada));
+            if (etapaSelecionada && etapaSelecionada.ID) {
+                formData.append('ID_ETAPA', String(etapaSelecionada.ID));
+            } else {
+                formData.append('ID_ETAPA', '0');
+            }
+            
             formData.append('TIPO_EVENTO', tipoAcao);
             formData.append('OBSERVACAO', obs);
             
-            if (fotoEvento){
-            formData.append('file', fotoEvento);
+            if (fotoEvento instanceof File) {
+                formData.append('file', fotoEvento);
             }
 
             await api.post('/rdo/evento', formData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
-
+            
             setModalEventoAberto(false);
             carregarTimeline();
-
-        } catch (error) { alert('Erro ao salvar.');
+        } catch (error) { 
+            console.error(error);
+            alert('Erro ao salvar evento. Tente uma foto menor.'); 
         } finally { 
-            setLoading(false);
+            setLoading(false); 
         }
     };
+  
 
     const addIndireta = () => { if(tempIndireta) { setListaIndireta([...listaIndireta, tempIndireta.toUpperCase()]); setTempIndireta(''); }};
     const removeIndireta = (idx: number) => { const l = [...listaIndireta]; l.splice(idx,1); setListaIndireta(l); };

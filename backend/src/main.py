@@ -175,6 +175,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user.STATUS != 1: raise HTTPException(status_code=401, detail="Usuário desativado. Acesso negado.")
     return user
 
+
 @app.post("/token")
 def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.TFuncionario).filter(
@@ -271,6 +272,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             "alertas": alertas
         }
     }
+
 @app.get("/admin/dashboard/stats")
 def get_dashboard_stats_admin(db: Session = Depends(get_db)):
     return get_dashboard_stats(db)
@@ -354,18 +356,19 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"msg": "Equipamento cadastrado"}
 
+
 @app.post("/rdo/evento")
 async def registrar_evento_rdo(
     ID_ATIVIDADE: int = Form(...), 
-    ID_ETAPA: int = Form(...),
+    ID_ETAPA: Optional[int] = Form(None), 
     TIPO_EVENTO: str = Form(...), 
     OBSERVACAO: str = Form(""),
-    file: Optional[UploadFile] = File(None), 
+    file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.TFuncionario = Depends(get_current_user)
 ):
     hoje = agora_br().date()
-    id_etapa_db = ID_ETAPA if ID_ETAPA > 0 else None
+    id_etapa_db = ID_ETAPA if ID_ETAPA and ID_ETAPA > 0 else None
     
     query = db.query(models.TServico).filter(models.TServico.CODATIVIDADE == ID_ATIVIDADE, cast(models.TServico.DATAINICIO, Date) == hoje)
     if id_etapa_db: query = query.filter(models.TServico.ID_ETAPA == id_etapa_db)
@@ -386,7 +389,12 @@ async def registrar_evento_rdo(
 
     foto_bytes = None
     if file:
-        foto_bytes = await file.read()
+        try:
+            content = await file.read()
+            if len(content) > 0:
+                foto_bytes = content
+        except Exception as e:
+            print(f"Erro ao ler arquivo: {e}")
     
     novo_evento = models.TRDO_Detalhado(
         ID_ETAPA=id_etapa_db, ID_FUNCIONARIO=current_user.ID, DATA_HORA_REGISTRO=agora_br(),
@@ -402,6 +410,7 @@ async def registrar_evento_rdo(
 
     db.commit()
     return {"msg": "Evento registrado", "status_atual": rdo.STATUS_DIA, "rdo_id": rdo.ID}
+
 
 @app.get("/rdo/timeline/{id_atividade}/{id_etapa}")
 def obter_timeline(id_atividade: int, id_etapa: int, db: Session = Depends(get_db)):
