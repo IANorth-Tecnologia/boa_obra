@@ -58,7 +58,7 @@ export default function Config() {
         setFormEquip({ descricao: '', valor: 0 });
     };
 
-    const iniciarEdicao = (item: any) => {
+    const iniciarEdicao = async (item: any) => {
         setEditandoId(item.ID);
         if (aba === 'OBRAS') {
             setFormObra({ 
@@ -67,7 +67,16 @@ export default function Config() {
                 objetivo: item.OBJETIVO || '', local: item.LOCAL || '',
                 fiscal: item.FISCAL || '', tipo: item.TIPO_SERVICO || ''
             });
-            setEtapasObra([]); 
+            
+            try {
+                const res = await api.get(`/etapas/obra/${item.ID}`);
+                if (res.data) {
+                    setEtapasObra(res.data.map((e: any) => e.NOME_ETAPA));
+                }
+            } catch (error) {
+                console.error("Erro ao carregar etapas:", error);
+                setEtapasObra([]);
+            }
         }
         if (aba === 'SERVICOS') setFormPreco({ 
             cod: item.CODIGO_ITEM, desc: item.DESCRICAO, 
@@ -117,7 +126,7 @@ export default function Config() {
         try {
             if (editandoId) {
                 await api.put(`/admin/atividades/${editandoId}`, payload);
-                alert("Obra atualizada! (Nota: Etapas não são alteradas na edição básica)");
+                alert("Obra e Cronograma atualizados com sucesso!");
             } else {
                 await api.post('/admin/atividades', payload);
                 alert("Obra criada com sucesso! Cronograma gerado.");
@@ -221,37 +230,35 @@ export default function Config() {
                                 <div><label className="text-xs font-bold text-gray-500">Local</label><input className="w-full p-2 border rounded" value={formObra.local} onChange={e => setFormObra({...formObra, local: e.target.value})} /></div>
                                 <div className="md:col-span-2 lg:col-span-4"><label className="text-xs font-bold text-gray-500">Objetivo</label><input className="w-full p-2 border rounded" value={formObra.objetivo} onChange={e => setFormObra({...formObra, objetivo: e.target.value})} /></div>
 
-                                {!editandoId && (
-                                    <div className="md:col-span-2 lg:col-span-4 bg-white p-3 rounded border border-blue-100">
-                                        <label className="text-xs font-bold text-blue-600 flex gap-1 items-center mb-2"><List size={14}/> Definir Etapas da Obra (Cronograma Inicial)</label>
-                                        <div className="flex gap-2 mb-2">
-                                            <input 
-                                                className="flex-1 p-2 border rounded text-sm uppercase" 
-                                                placeholder="Ex: FUNDAÇÃO, PINTURA, ENTREGA..." 
-                                                value={novaEtapa}
-                                                onChange={e => setNovaEtapa(e.target.value)}
-                                                onKeyDown={e => e.key === 'Enter' && addEtapaLista()}
-                                            />
-                                            <button onClick={addEtapaLista} className="bg-blue-100 text-blue-700 p-2 rounded hover:bg-blue-200"><Plus size={18}/></button>
-                                        </div>
-                                        {etapasObra.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {etapasObra.map((etapa, idx) => (
-                                                    <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 border">
-                                                        {idx + 1}. {etapa}
-                                                        <button onClick={() => removeEtapaLista(idx)} className="text-red-400 hover:text-red-600"><X size={12}/></button>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-gray-400 italic">Nenhuma etapa definida. Adicione ao menos uma para ativar o RDO.</p>
-                                        )}
+                                <div className="md:col-span-2 lg:col-span-4 bg-white p-3 rounded border border-blue-100">
+                                    <label className="text-xs font-bold text-blue-600 flex gap-1 items-center mb-2"><List size={14}/> Cronograma de Etapas</label>
+                                    <div className="flex gap-2 mb-2">
+                                        <input 
+                                            className="flex-1 p-2 border rounded text-sm uppercase" 
+                                            placeholder="Ex: FUNDAÇÃO, PINTURA, ENTREGA..." 
+                                            value={novaEtapa}
+                                            onChange={e => setNovaEtapa(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && addEtapaLista()}
+                                        />
+                                        <button onClick={addEtapaLista} className="bg-blue-100 text-blue-700 p-2 rounded hover:bg-blue-200"><Plus size={18}/></button>
                                     </div>
-                                )}
+                                    {etapasObra.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {etapasObra.map((etapa, idx) => (
+                                                <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 border">
+                                                    {idx + 1}. {etapa}
+                                                    <button onClick={() => removeEtapaLista(idx)} className="text-red-400 hover:text-red-600"><X size={12}/></button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 italic">Nenhuma etapa definida.</p>
+                                    )}
+                                </div>
 
                                 <div className="md:col-span-2 lg:col-span-4 flex gap-2 mt-2">
                                     <button onClick={salvarObra} className={`flex-1 h-12 text-white px-4 rounded font-bold flex gap-2 items-center justify-center shadow ${editandoId ? 'bg-yellow-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                                        {editandoId ? <><Edit size={20}/> Salvar Alterações</> : <><Plus size={20}/> Criar Obra e Cronograma</>}
+                                        {editandoId ? <><Edit size={20}/> Salvar Alterações</> : <><Plus size={20}/> Criar Obra</>}
                                     </button>
                                     {editandoId && <button onClick={cancelarEdicao} className="h-12 px-6 bg-gray-300 text-gray-700 rounded font-bold"><X size={20}/></button>}
                                 </div>

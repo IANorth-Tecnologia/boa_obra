@@ -628,7 +628,30 @@ def atualizar_preco(id: int, item: PrecoCreate, db: Session = Depends(get_db)):
 def atualizar_atividade(id: int, item: AtividadeCreate, db: Session = Depends(get_db)):
     db_item = db.query(models.TAtividade).filter(models.TAtividade.ID == id).first()
     if not db_item: raise HTTPException(status_code=404, detail="Não encontrada")
-    db_item.CODATIVIDADE = item.CODATIVIDADE; db_item.DESCRICAO = item.DESCRICAO; db_item.CONTRATADA = item.CONTRATADA; db_item.CONTRATANTE = item.CONTRATANTE; db_item.OBJETIVO = item.OBJETIVO; db_item.LOCAL = item.LOCAL; db_item.FISCAL = item.FISCAL; db_item.TIPO_SERVICO = item.TIPO_SERVICO
+
+    db_item.CODATIVIDADE = item.CODATIVIDADE;
+    db_item.DESCRICAO = item.DESCRICAO;
+    db_item.CONTRATADA = item.CONTRATADA; 
+    db_item.CONTRATANTE = item.CONTRATANTE;
+    db_item.OBJETIVO = item.OBJETIVO;
+    db_item.LOCAL = item.LOCAL;
+    db_item.FISCAL = item.FISCAL;
+    db_item.TIPO_SERVICO = item.TIPO_SERVICO
+
+    if item.ETAPAS is not None:
+        db.query(models.TEtapaObra).filter(models.TEtapaObra.ID_LOCAL == db_item.CODLOCALSERVICO).delete()
+        
+        for index, nome_etapa in enumerate(item.ETAPAS):
+            etapa = models.TEtapaObra(
+                ID_LOCAL=db_item.CODLOCALSERVICO, 
+                NOME_ETAPA=nome_etapa.upper(),
+                ORDEM=index + 1,
+                PERCENTUAL=0.0,
+                STATUS="PENDENTE"
+            )
+            db.add(etapa)
+
+
     db.commit()
     return {"msg": "Atualizado"}
 
