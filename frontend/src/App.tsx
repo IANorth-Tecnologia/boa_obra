@@ -38,7 +38,7 @@ export default function App() {
         
         <Route element={<PrivateWrapper />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/rdo" element={<NovoRDO />} />
+            <Route path="/novo-rdo" element={<NovoRDO />} />
         </Route>
 
         <Route element={<PrivateWrapper roles={['ADMIN', 'GESTOR']} />}>
