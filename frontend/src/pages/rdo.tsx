@@ -180,11 +180,22 @@ export default function RDO() {
             formData.append('ID_ETAPA', etapaSelecionada.ID);
             formData.append('TIPO_EVENTO', tipoAcao);
             formData.append('OBSERVACAO', obs);
+            
+            if (fotoEvento){
             formData.append('file', fotoEvento);
-            await api.post('/rdo/evento', formData);
+            }
+
+            await api.post('/rdo/evento', formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+
             setModalEventoAberto(false);
             carregarTimeline();
-        } catch (error) { alert('Erro ao salvar.'); } finally { setLoading(false); }
+
+        } catch (error) { alert('Erro ao salvar.');
+        } finally { 
+            setLoading(false);
+        }
     };
 
     const addIndireta = () => { if(tempIndireta) { setListaIndireta([...listaIndireta, tempIndireta.toUpperCase()]); setTempIndireta(''); }};

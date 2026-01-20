@@ -47,6 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- SCHEMAS ---
 class ItemPrecoRead(BaseModel):
     ID: int
     CODIGO_ITEM: str
@@ -180,16 +181,12 @@ def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
         (models.TFuncionario.CPF == form_data.username) |
         (models.TFuncionario.MATRICULA == form_data.username)
     ).first()
-
     if not user or not verificar_senha(form_data.password, user.SENHA_HASH):
         raise HTTPException(status_code=400, detail="Credenciais inválidas")
-
     if user.STATUS != 1:
         raise HTTPException(status_code=403, detail="Acesso bloqueado. Contate o administrador.")
-
     token = criar_token_acesso(data={"sub": user.NOME, "id": user.ID, "perfil": user.PERFIL})
     return {"access_token": token, "token_type": "bearer", "perfil": user.PERFIL, "nome": user.NOME}
-
 
 @app.get("/atividades")
 def listar_atividades(db: Session = Depends(get_db)):
@@ -234,7 +231,7 @@ def ver_foto_funcionario(id: int, db: Session = Depends(get_db)):
 def listar_equipamentos(db: Session = Depends(get_db)):
     return db.query(models.TEquipamento).all()
 
-@app.get("/admin/dashboard/stats")
+@app.get("/dashboard/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
     total_colaboradores = db.query(models.TFuncionario).filter(models.TFuncionario.STATUS == 1).count()
     total_obras_ativas = db.query(models.TAtividade).count()
@@ -242,18 +239,41 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     inicio_mes = hoje.replace(day=1)
     rdos_hoje = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
     rdos_mes = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
-    status_counts = db.query(
-        models.TServico.STATUS_DIA,
-        func.count(models.TServico.ID)
-    ).filter(models.TServico.DATAINICIO >= inicio_mes).group_by(models.TServico.STATUS_DIA).all()
+    status_counts = db.query(models.TServico.STATUS_DIA, func.count(models.TServico.ID)).filter(models.TServico.DATAINICIO >= inicio_mes).group_by(models.TServico.STATUS_DIA).all()
     status_dict = {s: c for s, c in status_counts if s}
+    
+    pendencias = db.query(models.TServico).filter(
+        models.TServico.STATUS_DIA != 'CONCLUIDO',
+        models.TServico.DATAINICIO >= inicio_mes
+    ).order_by(desc(models.TServico.DATAINICIO)).limit(5).all()
+
+    alertas = []
+    for p in pendencias:
+        obra = db.query(models.TAtividade).filter(models.TAtividade.ID == p.CODATIVIDADE).first()
+        nome_obra = obra.DESCRICAO if obra else f"ID {p.CODATIVIDADE}"
+        alertas.append({
+            "id": p.ID,
+            "obra": nome_obra,
+            "data": p.DATAINICIO,
+            "status": p.STATUS_DIA
+        })
+
     return {
-        "equipe_ativa": total_colaboradores,
-        "obras_ativas": total_obras_ativas,
-        "rdos_hoje": rdos_hoje,
-        "rdos_mes": rdos_mes,
-        "status_distribuicao": status_dict
+        "ranking": [], 
+        "kpis_globais": {
+            "rdos_hoje": rdos_hoje,
+            "rdos_mes": rdos_mes,
+            "equipe": total_colaboradores,
+            "obras": total_obras_ativas
+        },
+        "meus_stats": {
+            "total_mes": rdos_mes,
+            "alertas": alertas
+        }
     }
+@app.get("/admin/dashboard/stats")
+def get_dashboard_stats_admin(db: Session = Depends(get_db)):
+    return get_dashboard_stats(db)
 
 @app.get("/propostas")
 def listar_propostas(db: Session = Depends(get_db)):
@@ -336,9 +356,12 @@ def criar_equipamento(item: EquipamentoCreate, db: Session = Depends(get_db)):
 
 @app.post("/rdo/evento")
 async def registrar_evento_rdo(
-    ID_ATIVIDADE: int = Form(...), ID_ETAPA: int = Form(...),
-    TIPO_EVENTO: str = Form(...), OBSERVACAO: str = Form(""),
-    file: UploadFile = File(None), db: Session = Depends(get_db),
+    ID_ATIVIDADE: int = Form(...), 
+    ID_ETAPA: int = Form(...),
+    TIPO_EVENTO: str = Form(...), 
+    OBSERVACAO: str = Form(""),
+    file: Optional[UploadFile] = File(None), 
+    db: Session = Depends(get_db),
     current_user: models.TFuncionario = Depends(get_current_user)
 ):
     hoje = agora_br().date()
@@ -361,7 +384,9 @@ async def registrar_evento_rdo(
             db.refresh(rdo)
         else: raise HTTPException(400, "É necessário INICIAR antes de registrar outros eventos.")
 
-    foto_bytes = await file.read() if file else None
+    foto_bytes = None
+    if file:
+        foto_bytes = await file.read()
     
     novo_evento = models.TRDO_Detalhado(
         ID_ETAPA=id_etapa_db, ID_FUNCIONARIO=current_user.ID, DATA_HORA_REGISTRO=agora_br(),
@@ -432,7 +457,6 @@ def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Dep
 @app.delete("/rdo/{rdo_id}")
 def deletar_rdo(rdo_id: int, db: Session = Depends(get_db)):
     rdo = db.query(models.TServico).filter(models.TServico.ID == rdo_id).first()
-    # AQUI ESTAVA O ERRO: Corrigido para detail=
     if not rdo: raise HTTPException(status_code=404, detail="RDO não encontrado")
     
     db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
@@ -620,13 +644,16 @@ def baixar_pdf_rdo(rdo_id: int, db: Session = Depends(get_db)):
 
 @app.get("/rdos")
 def listar_todos_rdos(db: Session = Depends(get_db)):
-    lista = db.query(models.TServico).order_by(desc(models.TServico.DATAINICIO)).all()
+    lista = db.query(models.TServico).order_by(desc(models.TServico.DATAINICIO)).limit(200).all()
     resultado = []
     for rdo in lista:
         obra = db.query(models.TAtividade).filter(models.TAtividade.ID == rdo.CODATIVIDADE).first()
         nome_obra = obra.DESCRICAO if obra else "Obra não encontrada"
+        
+        data_fmt = rdo.DATAINICIO if rdo.DATAINICIO else datetime.now()
+
         resultado.append({
-            "ID": rdo.ID, "DATA": rdo.DATAINICIO, "OBRA": nome_obra, "STATUS": rdo.STATUS_DIA, "DESCRICAO": rdo.DESCRICAO
+            "ID": rdo.ID, "DATA": data_fmt, "OBRA": nome_obra, "STATUS": rdo.STATUS_DIA, "DESCRICAO": rdo.DESCRICAO
         })
     return resultado
 
