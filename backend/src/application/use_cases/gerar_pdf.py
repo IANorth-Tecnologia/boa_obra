@@ -27,7 +27,7 @@ def desenhar_pdf(rdo, obra, eventos_timeline=[]):
             iw, ih = img.getSize()
             aspect = iw / ih
             c.drawImage(img, 10, y - 20, width=20*aspect, height=20, mask='auto')
-    except: pass:
+    except: pass
 
     c.setFillColor(AZUL_ESCURO)
     c.setFont("Helvetica-Bold", 16)
