@@ -18,7 +18,6 @@ def desenhar_pdf(rdo, obra, eventos_timeline=[]):
     
     y = height - 40 
 
-    # CABEÇALHO
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "../../../assets/IanorthLog.png")
         if os.path.exists(logo_path):
@@ -46,7 +45,6 @@ def desenhar_pdf(rdo, obra, eventos_timeline=[]):
 
     y -= 70 
 
-    # DADOS DA OBRA
     c.setStrokeColor(AZUL_ESCURO)
     c.setLineWidth(1)
     c.line(30, y, width - 30, y)
@@ -230,7 +228,7 @@ def desenhar_pdf(rdo, obra, eventos_timeline=[]):
 
     if rdo.PENDENCIA: y = draw_text_block("5. OCORRÊNCIAS / PENDÊNCIAS", rdo.PENDENCIA, y)
 
-    # CRONOGRAMA E ETAPAS (COM FOTOS)
+    # --- 6. CRONOGRAMA E ETAPAS (COM FOTOS) ---
     if obra and obra.etapas:
         y -= 15
         y = check_page(y, 100)
@@ -285,7 +283,7 @@ def desenhar_pdf(rdo, obra, eventos_timeline=[]):
     c.drawCentredString(150, y, "Responsável Técnico (IANORTH)")
     c.drawCentredString(400, y, "Fiscalização / Cliente")
 
-    # FOTOS FINAIS 
+    # FOTOS FINAIS (ÁLBUM)
     if rdo.fotos:
         c.showPage()
         height = A4[1]
