@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { 
     Play, Pause, CheckSquare, Camera, Clock, 
     ChevronDown, History, Truck, Save, 
     HardHat, Briefcase, ChevronRight, ChevronLeft, X,
-    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus
+    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus, Search
 } from 'lucide-react';
 
 const CARGOS_GESTAO = [
     'ENGENHEIRO', 'MESTRE', 'ENCARREGADO', 'SUPERVISOR',
     'ADMINISTRATIVO', 'GERENTE', 'COORDENADOR', 'DIRETOR', 'FISCAL'
 ];
+
 
 const ClimaSelector = ({ periodo, value, onChange }: any) => {
     const opcoes = [
@@ -38,12 +39,68 @@ const ClimaSelector = ({ periodo, value, onChange }: any) => {
     );
 };
 
+const SmartInput = ({ value, onChange, options, placeholder }: any) => {
+    const [showList, setShowList] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: any) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                setShowList(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [wrapperRef]);
+
+    const filteredOptions = options.filter((op: any) => 
+        op.label.toUpperCase().includes(value.toUpperCase())
+    );
+
+    return (
+        <div ref={wrapperRef} className="relative flex-1">
+            <input 
+                type="text"
+                className="w-full p-2 border rounded text-sm uppercase bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => { onChange(e.target.value); setShowList(true); }}
+                onFocus={() => setShowList(true)}
+            />
+            {/* Ícone de busca visual */}
+            <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none">
+                {showList ? <ChevronDown size={14}/> : <Search size={14}/>}
+            </div>
+
+            {/* Lista Flutuante */}
+            {showList && filteredOptions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-xl max-h-48 overflow-y-auto z-50 divide-y">
+                    {filteredOptions.map((op: any, idx: number) => (
+                        <div 
+                            key={idx} 
+                            className="p-2 text-xs hover:bg-blue-50 cursor-pointer text-gray-700 uppercase"
+                            onClick={() => {
+                                onChange(op.value); // Preenche o input
+                                setShowList(false); // Fecha lista
+                            }}
+                        >
+                            {op.label}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 export default function NovoRDO() {
     const [obras, setObras] = useState<any[]>([]);
     const [obraSelecionada, setObraSelecionada] = useState<string>('');
     const [etapas, setEtapas] = useState<any[]>([]);
     const [etapaSelecionada, setEtapaSelecionada] = useState<any>(null);
     
+    // Dados para os SmartInputs (Formatados como {label, value})
     const [opcoesGestao, setOpcoesGestao] = useState<any[]>([]);
     const [opcoesOperacional, setOpcoesOperacional] = useState<any[]>([]);
     const [catalogoEquip, setCatalogoEquip] = useState<any[]>([]);
@@ -83,13 +140,19 @@ export default function NovoRDO() {
 
     useEffect(() => {
         api.get('/atividades').then(res => setObras(res.data));
-        api.get('/admin/equipamentos').then(res => setCatalogoEquip(res.data));
+        
+        // Carrega e formata dados para o SmartInput
+        api.get('/admin/equipamentos').then(res => {
+            setCatalogoEquip(res.data.map((eq:any) => ({ label: eq.DESCRICAO, value: eq.DESCRICAO })));
+        });
+
         api.get('/admin/funcionarios?apenas_ativos=true').then(res => {
             const todos = res.data;
             const gestao = todos.filter((f: any) => CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
             const operacional = todos.filter((f: any) => !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
-            setOpcoesGestao(gestao);
-            setOpcoesOperacional(operacional);
+            
+            setOpcoesGestao(gestao.map((f:any) => ({ label: `${f.NOME} (${f.FUNCAO})`, value: `${f.NOME} (${f.FUNCAO})` })));
+            setOpcoesOperacional(operacional.map((f:any) => ({ label: `${f.NOME} (${f.FUNCAO})`, value: `${f.NOME} (${f.FUNCAO})` })));
         });
     }, []);
 
@@ -314,17 +377,20 @@ export default function NovoRDO() {
                 </div>
             )}
 
+            {/* WIZARD MODAL - BOTÕES NO TOPO E INPUT INTELIGENTE */}
             {modalWizardAberto && (
-                <div className="fixed inset-0 z-[9999] flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" style={{ height: '100dvh' }}>
-                    
-                    {/* Header Fixo */}
+                <div 
+                    className="fixed inset-0 z-[9999] flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" 
+                    style={{ height: '100dvh' }}
+                >
+                    {/* 1. Header (Título + Fechar) */}
                     <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b shrink-0 h-16">
                         <h2 className="font-bold text-gray-800 text-lg">Finalizando o Dia</h2>
                         <button onClick={() => setModalWizardAberto(false)}><X className="text-gray-500"/></button>
                     </div>
 
+                    {/* 2. BARRA DE AÇÕES (NO TOPO) */}
                     <div className="bg-white p-2 px-4 border-b flex justify-between items-center shrink-0 gap-3">
-                        {/* Botão Voltar  */}
                         <div className="w-1/3">
                             {passoWizard > 1 && (
                                 <button onClick={()=>setPassoWizard(passoWizard-1)} className="text-gray-500 font-bold flex items-center gap-1 text-sm">
@@ -332,12 +398,7 @@ export default function NovoRDO() {
                                 </button>
                             )}
                         </div>
-
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                            Passo {passoWizard} de 3
-                        </div>
-
-                        {/* Botão Próximo/Finalizar */}
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">Passo {passoWizard} de 3</div>
                         <div className="w-1/3 flex justify-end">
                             {passoWizard < 3 ? (
                                 <button onClick={()=>setPassoWizard(passoWizard+1)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-1 text-sm shadow-sm">
@@ -360,11 +421,8 @@ export default function NovoRDO() {
 
                     {/* 4. Conteúdo com Scroll */}
                     <div className="flex-1 overflow-y-auto p-4 pb-24">
-                        <datalist id="dl-gestao">{opcoesGestao.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
-                        <datalist id="dl-operacional">{opcoesOperacional.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
-                        <datalist id="dl-equipamentos">{catalogoEquip.map((eq:any) => <option key={eq.ID} value={eq.DESCRICAO} />)}</datalist>
 
-                         {passoWizard === 1 && (
+                        {passoWizard === 1 && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
                                 <h3 className="font-bold text-lg text-gray-700">1. Status e Condições</h3>
                                 <section className="bg-white p-4 rounded-xl border shadow-sm space-y-4">
@@ -390,23 +448,47 @@ export default function NovoRDO() {
                         )}
 
                         {passoWizard === 2 && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+                             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
                                 <h3 className="font-bold text-lg text-gray-700">2. Recursos Utilizados</h3>
                                 <section className="bg-white p-4 rounded-xl border shadow-sm space-y-6">
                                     <div>
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-blue-600 uppercase flex gap-1"><Briefcase size={14}/> Indireta (Gestão)</span></div>
-                                        <div className="flex gap-2 mb-3"><input list="dl-gestao" className="flex-1 p-2 border rounded text-sm uppercase" placeholder="Buscar..." value={tempIndireta} onChange={e => setTempIndireta(e.target.value)} /><button onClick={addIndireta} className="bg-blue-600 text-white p-2 rounded"><Plus size={18}/></button></div>
+                                        <div className="flex gap-2 mb-3">
+                                            {/* SMART INPUT: DIGITA E FILTRA */}
+                                            <SmartInput 
+                                                value={tempIndireta}
+                                                onChange={setTempIndireta}
+                                                options={opcoesGestao}
+                                                placeholder="Busque ou digite..."
+                                            />
+                                            <button onClick={addIndireta} className="bg-blue-600 text-white p-2 rounded"><Plus size={18}/></button>
+                                        </div>
                                         {listaIndireta.length > 0 && <div className="space-y-1">{listaIndireta.map((nome, idx) => (<div key={idx} className="flex justify-between items-center bg-blue-50 p-2 rounded border border-blue-100 text-sm"><span className="text-blue-800 font-bold">{nome}</span><button onClick={() => removeIndireta(idx)} className="text-red-400"><Trash2 size={14}/></button></div>))}</div>}
                                     </div>
                                     <div className="border-t pt-4">
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-green-600 uppercase flex gap-1"><HardHat size={14}/> Direta (Execução)</span></div>
-                                        <div className="flex gap-2 mb-3"><input list="dl-operacional" className="flex-1 p-2 border rounded text-sm uppercase" placeholder="Buscar..." value={tempDireta} onChange={e => setTempDireta(e.target.value)} /><button onClick={addDireta} className="bg-green-600 text-white p-2 rounded"><Plus size={18}/></button></div>
+                                        <div className="flex gap-2 mb-3">
+                                            {/* SMART INPUT: DIGITA E FILTRA */}
+                                            <SmartInput 
+                                                value={tempDireta}
+                                                onChange={setTempDireta}
+                                                options={opcoesOperacional}
+                                                placeholder="Busque ou digite..."
+                                            />
+                                            <button onClick={addDireta} className="bg-green-600 text-white p-2 rounded"><Plus size={18}/></button>
+                                        </div>
                                         {listaDireta.length > 0 && <div className="space-y-1">{listaDireta.map((nome, idx) => (<div key={idx} className="flex justify-between items-center bg-green-50 p-2 rounded border border-green-100 text-sm"><span className="text-green-800 font-bold">{nome}</span><button onClick={() => removeDireta(idx)} className="text-red-400"><Trash2 size={14}/></button></div>))}</div>}
                                     </div>
                                     <div className="border-t pt-4">
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-orange-600 uppercase flex gap-1"><Truck size={14}/> Equipamentos</span></div>
                                         <div className="flex gap-2 mb-3">
-                                            <input list="dl-equipamentos" className="flex-1 p-2 border rounded text-sm uppercase" placeholder="Item..." value={tempEquip.desc} onChange={e => setTempEquip({...tempEquip, desc: e.target.value})} />
+                                            {/* SMART INPUT: DIGITA E FILTRA */}
+                                            <SmartInput 
+                                                value={tempEquip.desc}
+                                                onChange={(val:string) => setTempEquip({...tempEquip, desc: val})}
+                                                options={catalogoEquip}
+                                                placeholder="Equipamento..."
+                                            />
                                             <input type="number" className="w-16 p-2 border rounded text-center" value={tempEquip.qtd} onChange={e => setTempEquip({...tempEquip, qtd: parseInt(e.target.value) || 1})}/>
                                             <button onClick={addEquipamento} className="bg-orange-500 text-white p-2 rounded"><Plus size={18}/></button>
                                         </div>
@@ -424,7 +506,6 @@ export default function NovoRDO() {
                                     <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
                                         <Upload size={24} className="text-gray-400 mb-1"/>
                                         <span className="text-sm text-gray-500 font-medium">Adicionar Fotos</span>
-                                        {/* Câmera e Galeria Habilitadas */}
                                         <input type="file" multiple accept="image/*" className="hidden" onChange={handleFotos} />
                                     </label>
                                     {previews.length > 0 && (<div className="flex gap-2 mt-4 overflow-x-auto pb-2">{previews.map((src, idx) => (<div key={idx} className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200"><img src={src} alt="Preview" className="w-full h-full object-cover" /><button onClick={() => removeFoto(idx)} className="absolute top-1 right-1 bg-red-600 text-white p-0.5 rounded shadow"><X size={10}/></button></div>))}</div>)}
@@ -436,11 +517,11 @@ export default function NovoRDO() {
                             </div>
                         )}
                     </div>
-                    </div>
-)}
+                </div>
+            )}
 
             {modalEventoAberto && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl w-full max-w-sm p-4 space-y-4">
                         <h3 className="font-bold border-b pb-2">Registrar Pausa</h3>
                         <textarea className="w-full p-2 border rounded" placeholder="Motivo (Almoço, Chuva...)" value={obs} onChange={e=>setObs(e.target.value)}></textarea>

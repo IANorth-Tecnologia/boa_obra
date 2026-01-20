@@ -38,7 +38,7 @@ export default function Layout() {
     { 
       icon: PlusCircle, 
       label: 'Novo RDO', 
-      path: '/rdo', 
+      path: '/novo-rdo', 
       highlight: true, 
       roles: ['ADMIN', 'GESTOR', 'COLABORADOR'] 
     },
