@@ -38,7 +38,7 @@ const ClimaSelector = ({ periodo, value, onChange }: any) => {
     );
 };
 
-export default function RDO() {
+export default function NovoRDO() {
     const [obras, setObras] = useState<any[]>([]);
     const [obraSelecionada, setObraSelecionada] = useState<string>('');
     const [etapas, setEtapas] = useState<any[]>([]);

@@ -1,13 +1,12 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import RDO from './pages/rdo';
 import Config from './pages/Config';
-import Orcamentos from './pages/Orcamentos';
 import Layout from './components/Layout'; 
 import Equipe from './pages/Equipe';
 import CronogramaObra from './pages/CronogramaObra';
+import NovoRDO from './pages/Novo-rdo';
+import GestaoOrcamentos from './pages/GestaoOrcamentos';
 
 const PrivateWrapper = ({ roles }: { roles?: string[] }) => {
     const token = localStorage.getItem('token');
@@ -39,13 +38,13 @@ export default function App() {
         
         <Route element={<PrivateWrapper />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/rdo" element={<RDO />} />
+            <Route path="/rdo" element={<NovoRDO />} />
         </Route>
 
         <Route element={<PrivateWrapper roles={['ADMIN', 'GESTOR']} />}>
             <Route path="/config" element={<Config />} />
-            <Route path="/orcamentos" element={<Orcamentos />} />
-            <Route path="/orcamentos/:id" element={<Orcamentos />} />
+            <Route path="/orcamentos" element={<GestaoOrcamentos />} />
+            <Route path="/orcamentos/:id" element={<GestaoOrcamentos />} />
             <Route path="/equipe" element={<Equipe />} />
             <Route path="/cronograma" element={<CronogramaObra />} />
             <Route path="/dashboard-gerencia" element={<Dashboard />} />

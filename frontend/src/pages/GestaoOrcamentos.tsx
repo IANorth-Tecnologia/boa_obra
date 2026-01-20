@@ -5,7 +5,7 @@ import {
   ArrowLeft, HardHat, DollarSign, Printer
 } from 'lucide-react';
 
-export default function Orcamentos() {
+export default function GestaoOrcamentos() {
   const [obraSelecionada, setObraSelecionada] = useState<string>('');
   const [listaObras, setListaObras] = useState<any[]>([]);
   

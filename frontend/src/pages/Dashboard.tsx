@@ -170,7 +170,7 @@ const sincronizarTudo = async () => {
                         {sincronizando ? <RefreshCw className="animate-spin"/> : <CloudOff/>} Sincronizar ({rdosLocais.length})
                     </button>
                 )}
-                <button onClick={() => navigate('/rdo')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg">
+                <button onClick={() => navigate('/novo-rdo')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg">
                     <Plus/> Novo RDO
                 </button>
             </div>
