@@ -315,7 +315,7 @@ export default function NovoRDO() {
             )}
 
             {modalWizardAberto && (
-                <div className="fixed inset-0 z-50 flex flex-col w-full h-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300">
+                <div className="fixed inset-0 z-50 flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" style={{ height: '100dvh' }}>
                     
                     {/* Header Fixo */}
                     <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b shrink-0 h-16">

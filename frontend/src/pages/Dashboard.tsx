@@ -77,7 +77,7 @@ const sincronizarTudo = async () => {
                         EQUIPAMENTOS: rdo.equipamentos.map((e:any) => ({ DESCRICAO: e.DESCRICAO, QUANTIDADE: e.QUANTIDADE }))
                     };
 
-                    const res = await api.post('/rdo', payload);
+                    const res = await api.post('/rdos', payload);
                     idServidor = res.data.id;
                     
                     await db.rdos.update(rdo.id, { idServer: idServidor });

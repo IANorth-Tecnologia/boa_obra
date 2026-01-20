@@ -476,7 +476,7 @@ def deletar_rdo(rdo_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"msg": "RDO excluído com sucesso"}
 
-@app.post("/rdo")
+@app.post("/rdos")
 def criar_rdo(item: RDOCreate, db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
     novo_rdo = models.TServico(
         CODATIVIDADE=item.ID_ATIVIDADE, ID_ETAPA=item.ID_ETAPA, ID_RESPONSAVEL=current_user.ID,
