@@ -83,20 +83,11 @@ export default function RDO() {
 
     useEffect(() => {
         api.get('/atividades').then(res => setObras(res.data));
-        
         api.get('/admin/equipamentos').then(res => setCatalogoEquip(res.data));
-
         api.get('/admin/funcionarios?apenas_ativos=true').then(res => {
             const todos = res.data;
-            
-            const gestao = todos.filter((f: any) => 
-                CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo))
-            );
-            
-            const operacional = todos.filter((f: any) => 
-                !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo))
-            );
-
+            const gestao = todos.filter((f: any) => CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
+            const operacional = todos.filter((f: any) => !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
             setOpcoesGestao(gestao);
             setOpcoesOperacional(operacional);
         });
@@ -108,20 +99,14 @@ export default function RDO() {
             setEtapaSelecionada(null);
             setStatusAtual('NAO_INICIADO');
             setTimeline([]);
-            
-            api.get(`/etapas/obra/${obraSelecionada}`)
-                .then(res => setEtapas(res.data))
-                .catch(console.error);
+            api.get(`/etapas/obra/${obraSelecionada}`).then(res => setEtapas(res.data)).catch(console.error);
         }
     }, [obraSelecionada]);
 
     useEffect(() => {
         if (etapaSelecionada && obraSelecionada) {
-            if (etapaSelecionada.ID === 0) {
-                iniciarRdoGeral();
-            } else {
-                carregarTimeline();
-            }
+            if (etapaSelecionada.ID === 0) iniciarRdoGeral();
+            else carregarTimeline();
         }
     }, [etapaSelecionada]);
 
@@ -150,7 +135,7 @@ export default function RDO() {
         try {
             const formData = new FormData();
             formData.append('ID_ATIVIDADE', obraSelecionada);
-            formData.append('ID_ETAPA', etapaSelecionada.ID);
+            formData.append('ID_ETAPA', String(etapaSelecionada.ID));
             const evento = statusAtual === 'PAUSADO' ? 'RETOMADA' : 'INICIO';
             formData.append('TIPO_EVENTO', evento);
             formData.append('OBSERVACAO', evento === 'INICIO' ? 'Início dos trabalhos' : 'Retorno da pausa');
@@ -171,7 +156,6 @@ export default function RDO() {
         }
     };
 
-
     const confirmarEventoPausa = async () => {
         if (!obs) return alert('Preencha a observação.');
         setLoading(true);
@@ -183,35 +167,28 @@ export default function RDO() {
             } else {
                 formData.append('ID_ETAPA', '0');
             }
-            
             formData.append('TIPO_EVENTO', tipoAcao);
             formData.append('OBSERVACAO', obs);
-            
             if (fotoEvento instanceof File) {
                 formData.append('file', fotoEvento);
             }
-
             await api.post('/rdo/evento', formData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
-            
             setModalEventoAberto(false);
             carregarTimeline();
         } catch (error) { 
             console.error(error);
-            alert('Erro ao salvar evento. Tente uma foto menor.'); 
+            alert('Erro ao salvar evento. Verifique a conexão.'); 
         } finally { 
             setLoading(false); 
         }
     };
-  
 
     const addIndireta = () => { if(tempIndireta) { setListaIndireta([...listaIndireta, tempIndireta.toUpperCase()]); setTempIndireta(''); }};
     const removeIndireta = (idx: number) => { const l = [...listaIndireta]; l.splice(idx,1); setListaIndireta(l); };
-
     const addDireta = () => { if(tempDireta) { setListaDireta([...listaDireta, tempDireta.toUpperCase()]); setTempDireta(''); }};
     const removeDireta = (idx: number) => { const l = [...listaDireta]; l.splice(idx,1); setListaDireta(l); };
-
     const addEquipamento = () => { if(tempEquip.desc) { setListaEquipamentos([...listaEquipamentos, {...tempEquip, desc: tempEquip.desc.toUpperCase()}]); setTempEquip({desc:'', qtd:1}); }};
     const removeEquip = (idx: number) => { const l = [...listaEquipamentos]; l.splice(idx,1); setListaEquipamentos(l); };
 
@@ -257,7 +234,7 @@ export default function RDO() {
             if (etapaSelecionada.ID !== 0) {
                 const fd = new FormData();
                 fd.append('ID_ATIVIDADE', obraSelecionada);
-                fd.append('ID_ETAPA', etapaSelecionada.ID);
+                fd.append('ID_ETAPA', String(etapaSelecionada.ID));
                 fd.append('TIPO_EVENTO', 'CONCLUSAO');
                 await api.post('/rdo/evento', fd);
             }
@@ -281,6 +258,7 @@ export default function RDO() {
                 <Clock className="text-blue-600" /> Acompanhamento Diário
             </h1>
 
+            {/* SELETORES */}
             <div className="bg-white p-4 rounded-xl shadow-sm border mb-4 space-y-3">
                 <div className="relative">
                     <select className="w-full p-3 border rounded-lg bg-gray-50 font-bold appearance-none" value={obraSelecionada} onChange={e => setObraSelecionada(e.target.value)}>
@@ -304,6 +282,7 @@ export default function RDO() {
                 )}
             </div>
 
+            {/* BOTÕES DE AÇÃO */}
             {etapaSelecionada && !modalWizardAberto && (
                 <div className="animate-in zoom-in-95 duration-200">
                     <div className="mb-6 grid grid-cols-2 gap-3 h-32">
@@ -336,20 +315,19 @@ export default function RDO() {
             )}
 
             {modalWizardAberto && (
-                <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col animate-in slide-in-from-bottom-full duration-300">
-                    <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b">
+                <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col h-[100dvh] w-full animate-in slide-in-from-bottom-full duration-300">
+                    <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b shrink-0">
                         <h2 className="font-bold text-gray-800 text-lg">Finalizando o Dia</h2>
                         <button onClick={() => setModalWizardAberto(false)}><X className="text-gray-500"/></button>
                     </div>
 
-                    <div className="flex gap-1 h-1 bg-gray-200">
+                    <div className="flex gap-1 h-1 bg-gray-200 shrink-0">
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 1 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 2 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 3 ? 'opacity-100' : 'opacity-0'}`}></div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 pb-20">
-                        
+                    <div className="flex-1 overflow-y-auto p-4">
                         <datalist id="dl-gestao">{opcoesGestao.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
                         <datalist id="dl-operacional">{opcoesOperacional.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
                         <datalist id="dl-equipamentos">{catalogoEquip.map((eq:any) => <option key={eq.ID} value={eq.DESCRICAO} />)}</datalist>
@@ -411,7 +389,12 @@ export default function RDO() {
                                 <h3 className="font-bold text-lg text-gray-700">3. Evidências e Detalhes</h3>
                                 <section className="bg-white p-4 rounded-xl border shadow-sm">
                                     <div className="flex justify-between items-center mb-3 border-b pb-2"><h2 className="text-sm font-bold text-gray-800 flex gap-2"><Camera size={18}/> Fotos ({fotos.length})</h2>{fotos.length > 0 && <button onClick={() => { setFotos([]); setPreviews([]); }} className="text-xs text-red-500">Limpar</button>}</div>
-                                    <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"><Upload size={24} className="text-gray-400 mb-1"/><span className="text-sm text-gray-500 font-medium">Adicionar Fotos</span><input type="file" multiple accept="image/*" className="hidden" onChange={handleFotos} /></label>
+                                    <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
+                                        <Upload size={24} className="text-gray-400 mb-1"/>
+                                        <span className="text-sm text-gray-500 font-medium">Adicionar Fotos</span>
+                                        {/* Câmera e Galeria Habilitadas */}
+                                        <input type="file" multiple accept="image/*" className="hidden" onChange={handleFotos} />
+                                    </label>
                                     {previews.length > 0 && (<div className="flex gap-2 mt-4 overflow-x-auto pb-2">{previews.map((src, idx) => (<div key={idx} className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200"><img src={src} alt="Preview" className="w-full h-full object-cover" /><button onClick={() => removeFoto(idx)} className="absolute top-1 right-1 bg-red-600 text-white p-0.5 rounded shadow"><X size={10}/></button></div>))}</div>)}
                                 </section>
                                 <section className="bg-white p-4 rounded-xl border shadow-sm space-y-4">
@@ -422,7 +405,7 @@ export default function RDO() {
                         )}
                     </div>
 
-                    <div className="bg-white p-4 border-t flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                    <div className="bg-white p-4 border-t flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] shrink-0">
                         {passoWizard > 1 ? (
                             <button onClick={()=>setPassoWizard(passoWizard-1)} className="px-4 py-3 rounded-lg border font-bold text-gray-600 flex items-center gap-2"><ChevronLeft/> Voltar</button>
                         ) : <div/>}
