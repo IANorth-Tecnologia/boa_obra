@@ -26,6 +26,7 @@ from src.application.use_cases.gerar_pdf import desenhar_pdf, desenhar_orcamento
 from src.auth import verificar_senha, gerar_hash_senha, criar_token_acesso, SECRET_KEY, ALGORITHM
 from src.routers import etapas
 
+# --- CONFIGURAÇÃO DE FUSO E BANCO ---
 def agora_br():
     return datetime.now(ZoneInfo("America/Sao_Paulo"))
 
@@ -47,6 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- SCHEMAS ---
 class ItemPrecoRead(BaseModel):
     ID: int
     CODIGO_ITEM: str
@@ -432,7 +434,8 @@ def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Dep
 @app.delete("/rdo/{rdo_id}")
 def deletar_rdo(rdo_id: int, db: Session = Depends(get_db)):
     rdo = db.query(models.TServico).filter(models.TServico.ID == rdo_id).first()
-    if not rdo: raise HTTPException(status_code=404, "RDO não encontrado")
+    
+    if not rdo: raise HTTPException(status_code=404, detail="RDO não encontrado")
     
     # Remove dependências
     db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
