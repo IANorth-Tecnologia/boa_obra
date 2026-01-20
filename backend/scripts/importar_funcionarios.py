@@ -3,11 +3,17 @@ import os
 import csv
 from typing import List
 
-# Ajusta o caminho para o projeto
+# Ajusta o caminho para o projeto (assume que o script está na pasta scripts/)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.infrastructure.db.session import SessionLocal
 from src.infrastructure.db import models
+from src.auth import gerar_hash_senha # <--- IMPORTANTE: Importa a criptografia
+
+# --- CONFIGURAÇÕES ---
+SENHA_PADRAO = "Ia@nort!01"
+PERFIL_PADRAO = "COLABORADOR"
+GRUPO_PADRAO = "GERAL"
 
 # Tenta importar openpyxl (para ler Excel)
 try:
@@ -16,6 +22,11 @@ try:
 except ImportError:
     TEM_OPENPYXL = False
 
+def limpar_cpf(cpf_raw):
+    """Remove pontos e traços do CPF para salvar limpo no banco"""
+    if not cpf_raw: return ""
+    return str(cpf_raw).replace('.', '').replace('-', '').strip()
+
 def ler_arquivo_excel(caminho):
     print("   📊 Tentando ler como EXCEL (.xlsx)...")
     try:
@@ -23,7 +34,6 @@ def ler_arquivo_excel(caminho):
         ws = wb.active
         linhas = []
         for row in ws.iter_rows(values_only=True):
-            # Converte tudo para string e substitui None por ''
             linhas.append([str(cell).strip() if cell is not None else '' for cell in row])
         print("   ✅ Arquivo Excel lido com sucesso!")
         return linhas
@@ -39,12 +49,13 @@ def ler_arquivo_csv(caminho):
         try:
             with open(caminho, 'r', encoding=enc) as f:
                 conteudo = f.readlines()
-                # Tenta detectar separador na primeira linha
-                if ';' in conteudo[0]: separador = ';'
-                else: separador = ','
+                # Tenta detectar separador
+                separador = ';' if ';' in conteudo[0] else ','
+                if len(conteudo) > 2 and ',' in conteudo[2] and separador == ';': separador = ',' # Fallback
                 
                 linhas = []
                 for linha in conteudo:
+                    # Remove aspas extras que o CSV as vezes coloca
                     linhas.append([c.strip().replace('"','') for c in linha.split(separador)])
                 
                 print(f"   ✅ CSV lido com encoding {enc} e separador '{separador}'")
@@ -55,30 +66,33 @@ def ler_arquivo_csv(caminho):
 
 def importar_equipe():
     db = SessionLocal()
-    # Tenta achar o arquivo com extensão correta ou o renomeado
-    arquivos_possiveis = ["funcionarios.xlsx", "funcionarios.csv", "Planilha funcionarios.xlsx"]
-    arquivo_alvo = None
     
+    # Adicionei o nome do seu arquivo aqui na lista
+    arquivos_possiveis = [
+        "LAMINADOR II.xlsx - Planilha1.csv", 
+        "funcionarios.xlsx", 
+        "funcionarios.csv"
+    ]
+    
+    arquivo_alvo = None
+    dir_atual = os.path.dirname(os.path.abspath(__file__))
+
     for arq in arquivos_possiveis:
-        if os.path.exists(arq):
-            arquivo_alvo = arq
+        caminho_completo = os.path.join(dir_atual, arq)
+        if os.path.exists(caminho_completo):
+            arquivo_alvo = caminho_completo
             break
     
     if not arquivo_alvo:
-        print(f"❌ ERRO: Nenhum arquivo encontrado ({arquivos_possiveis})")
+        print(f"❌ ERRO: Nenhum arquivo encontrado na pasta {dir_atual}")
         return
 
     print(f"🚀 INICIANDO IMPORTAÇÃO: {arquivo_alvo}")
     
     dados = None
-    
-    # 1. Tenta ler como Excel (Se tiver a lib instalada)
-    if TEM_OPENPYXL:
+    if TEM_OPENPYXL and arquivo_alvo.endswith('.xlsx'):
         dados = ler_arquivo_excel(arquivo_alvo)
-    else:
-        print("   ℹ️ Biblioteca 'openpyxl' não instalada. Pulando tentativa de Excel.")
-
-    # 2. Se falhou (ou não é excel), tenta CSV
+    
     if not dados:
         dados = ler_arquivo_csv(arquivo_alvo)
 
@@ -86,61 +100,100 @@ def importar_equipe():
         print("❌ FALHA CRÍTICA: Não foi possível ler o arquivo.")
         return
 
-    # --- PROCESSAMENTO DOS DADOS ---
+    # --- PROCESSAMENTO ---
     print("   ⚙️ Processando colunas...")
     
-    cabecalho = []
     idx_nome = -1
+    idx_cpf = -1
     idx_funcao = -1
     inicio_dados = 0
 
-    # Procura cabeçalho
+    # Procura cabeçalho inteligente
     for i, linha in enumerate(dados):
         colunas_upper = [str(c).upper().strip() for c in linha]
         
-        if "NOME" in colunas_upper and ("FUNÇÃO" in colunas_upper or "FUNCAO" in colunas_upper):
-            cabecalho = colunas_upper
-            idx_nome = colunas_upper.index("NOME")
+        # Procura por NOME e (CPF ou COLABORADOR)
+        if ("NOME" in colunas_upper or "COLABORADOR" in colunas_upper) and "CPF" in colunas_upper:
+            print(f"   ✅ Cabeçalho encontrado na linha {i+1}: {colunas_upper}")
+            
+            try: idx_nome = colunas_upper.index("NOME")
+            except: idx_nome = colunas_upper.index("COLABORADOR")
+            
+            idx_cpf = colunas_upper.index("CPF")
+            
+            # Tenta achar função, se não tiver usa padrão
             try: idx_funcao = colunas_upper.index("FUNÇÃO")
-            except: idx_funcao = colunas_upper.index("FUNCAO")
+            except: 
+                try: idx_funcao = colunas_upper.index("FUNCAO")
+                except: idx_funcao = -1
+
             inicio_dados = i + 1
-            print(f"   ✅ Cabeçalho encontrado na linha {i+1}")
             break
     
-    if idx_nome == -1:
-        print("❌ ERRO: Colunas 'NOME' e 'FUNÇÃO' não encontradas.")
+    if idx_nome == -1 or idx_cpf == -1:
+        print("❌ ERRO: Colunas 'COLABORADOR/NOME' e 'CPF' são obrigatórias.")
         return
 
     novos = 0
     atualizados = 0
 
+    # Gera o hash da senha padrão uma vez só para ganhar performance
+    senha_hash_padrao = gerar_hash_senha(SENHA_PADRAO)
+
     for linha in dados[inicio_dados:]:
-        # Pula linhas incompletas
-        if len(linha) <= max(idx_nome, idx_funcao): continue
+        if len(linha) <= max(idx_nome, idx_cpf): continue
         
-        nome = linha[idx_nome].strip()
-        funcao = linha[idx_funcao].strip()
+        nome = linha[idx_nome].strip().upper()
+        cpf_sujo = linha[idx_cpf].strip()
+        
+        if len(nome) < 3 or len(cpf_sujo) < 5: continue 
 
-        if len(nome) < 3: continue # Ignora nomes muito curtos ou vazios
+        cpf = limpar_cpf(cpf_sujo)
+        
+        # Define a função (cargo)
+        funcao = "OPERACIONAL"
+        if idx_funcao != -1 and len(linha) > idx_funcao:
+            f = linha[idx_funcao].strip().upper()
+            if f: funcao = f
 
-        # Banco de Dados
-        existente = db.query(models.TFuncionario).filter(models.TFuncionario.NOME == nome).first()
+        # Busca por CPF (é mais seguro que nome)
+        existente = db.query(models.TFuncionario).filter(models.TFuncionario.CPF == cpf).first()
         
         if not existente:
-            novo = models.TFuncionario(NOME=nome, FUNCAO=funcao or "Operacional", STATUS=1)
+            # CRIAR NOVO
+            novo = models.TFuncionario(
+                NOME=nome, 
+                CPF=cpf,
+                MATRICULA="", 
+                FUNCAO=funcao, 
+                SENHA_HASH=senha_hash_padrao, # <--- AQUI A MÁGICA
+                PERFIL=PERFIL_PADRAO,
+                GRUPO=GRUPO_PADRAO,
+                STATUS=1
+            )
             db.add(novo)
             novos += 1
-            print(f"      [+] {nome}")
+            print(f"      [+] Criando: {nome}")
         else:
-            if existente.FUNCAO != funcao and funcao:
-                existente.FUNCAO = funcao
+            # ATUALIZAR EXISTENTE (Reseta senha e atualiza nome/cargo)
+            mudou = False
+            if existente.SENHA_HASH != senha_hash_padrao:
+                existente.SENHA_HASH = senha_hash_padrao
+                mudou = True
+            
+            if existente.NOME != nome:
+                existente.NOME = nome
+                mudou = True
+                
+            if mudou:
                 atualizados += 1
+                print(f"      [~] Atualizando: {nome}")
 
     db.commit()
     print("-" * 40)
     print(f"✅ IMPORTAÇÃO CONCLUÍDA!")
-    print(f"🆕 Novos: {novos}")
-    print(f"🔄 Atualizados: {atualizados}")
+    print(f"🆕 Novos Cadastros: {novos}")
+    print(f"🔄 Atualizados (Senha Resetada): {atualizados}")
     db.close()
 
 if __name__ == "__main__":
