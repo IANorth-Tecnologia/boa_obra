@@ -83,11 +83,20 @@ export default function RDO() {
 
     useEffect(() => {
         api.get('/atividades').then(res => setObras(res.data));
+        
         api.get('/admin/equipamentos').then(res => setCatalogoEquip(res.data));
+
         api.get('/admin/funcionarios?apenas_ativos=true').then(res => {
             const todos = res.data;
-            const gestao = todos.filter((f: any) => CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
-            const operacional = todos.filter((f: any) => !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
+            
+            const gestao = todos.filter((f: any) => 
+                CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo))
+            );
+            
+            const operacional = todos.filter((f: any) => 
+                !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo))
+            );
+
             setOpcoesGestao(gestao);
             setOpcoesOperacional(operacional);
         });
@@ -99,14 +108,20 @@ export default function RDO() {
             setEtapaSelecionada(null);
             setStatusAtual('NAO_INICIADO');
             setTimeline([]);
-            api.get(`/etapas/obra/${obraSelecionada}`).then(res => setEtapas(res.data)).catch(console.error);
+            
+            api.get(`/etapas/obra/${obraSelecionada}`)
+                .then(res => setEtapas(res.data))
+                .catch(console.error);
         }
     }, [obraSelecionada]);
 
     useEffect(() => {
         if (etapaSelecionada && obraSelecionada) {
-            if (etapaSelecionada.ID === 0) iniciarRdoGeral();
-            else carregarTimeline();
+            if (etapaSelecionada.ID === 0) {
+                iniciarRdoGeral();
+            } else {
+                carregarTimeline();
+            }
         }
     }, [etapaSelecionada]);
 
@@ -169,12 +184,15 @@ export default function RDO() {
             }
             formData.append('TIPO_EVENTO', tipoAcao);
             formData.append('OBSERVACAO', obs);
+            
             if (fotoEvento instanceof File) {
                 formData.append('file', fotoEvento);
             }
+
             await api.post('/rdo/evento', formData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
+            
             setModalEventoAberto(false);
             carregarTimeline();
         } catch (error) { 
@@ -187,8 +205,10 @@ export default function RDO() {
 
     const addIndireta = () => { if(tempIndireta) { setListaIndireta([...listaIndireta, tempIndireta.toUpperCase()]); setTempIndireta(''); }};
     const removeIndireta = (idx: number) => { const l = [...listaIndireta]; l.splice(idx,1); setListaIndireta(l); };
+
     const addDireta = () => { if(tempDireta) { setListaDireta([...listaDireta, tempDireta.toUpperCase()]); setTempDireta(''); }};
     const removeDireta = (idx: number) => { const l = [...listaDireta]; l.splice(idx,1); setListaDireta(l); };
+
     const addEquipamento = () => { if(tempEquip.desc) { setListaEquipamentos([...listaEquipamentos, {...tempEquip, desc: tempEquip.desc.toUpperCase()}]); setTempEquip({desc:'', qtd:1}); }};
     const removeEquip = (idx: number) => { const l = [...listaEquipamentos]; l.splice(idx,1); setListaEquipamentos(l); };
 
@@ -258,7 +278,6 @@ export default function RDO() {
                 <Clock className="text-blue-600" /> Acompanhamento Diário
             </h1>
 
-            {/* SELETORES */}
             <div className="bg-white p-4 rounded-xl shadow-sm border mb-4 space-y-3">
                 <div className="relative">
                     <select className="w-full p-3 border rounded-lg bg-gray-50 font-bold appearance-none" value={obraSelecionada} onChange={e => setObraSelecionada(e.target.value)}>
@@ -282,7 +301,6 @@ export default function RDO() {
                 )}
             </div>
 
-            {/* BOTÕES DE AÇÃO */}
             {etapaSelecionada && !modalWizardAberto && (
                 <div className="animate-in zoom-in-95 duration-200">
                     <div className="mb-6 grid grid-cols-2 gap-3 h-32">
@@ -315,18 +333,22 @@ export default function RDO() {
             )}
 
             {modalWizardAberto && (
-                <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col h-[100dvh] w-full animate-in slide-in-from-bottom-full duration-300">
+                <div className="fixed inset-0 z-50 flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" style={{ height: '100dvh' }}>
+                    
+                    {/* Header Fixo */}
                     <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b shrink-0">
                         <h2 className="font-bold text-gray-800 text-lg">Finalizando o Dia</h2>
                         <button onClick={() => setModalWizardAberto(false)}><X className="text-gray-500"/></button>
                     </div>
 
+                    {/* Barra de Progresso Fixa */}
                     <div className="flex gap-1 h-1 bg-gray-200 shrink-0">
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 1 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 2 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 3 ? 'opacity-100' : 'opacity-0'}`}></div>
                     </div>
 
+                    {/* Conteúdo com Scroll */}
                     <div className="flex-1 overflow-y-auto p-4">
                         <datalist id="dl-gestao">{opcoesGestao.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
                         <datalist id="dl-operacional">{opcoesOperacional.map((f:any) => <option key={f.ID} value={`${f.NOME} (${f.FUNCAO})`} />)}</datalist>
@@ -405,6 +427,7 @@ export default function RDO() {
                         )}
                     </div>
 
+                    {/* Footer Fixo */}
                     <div className="bg-white p-4 border-t flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] shrink-0">
                         {passoWizard > 1 ? (
                             <button onClick={()=>setPassoWizard(passoWizard-1)} className="px-4 py-3 rounded-lg border font-bold text-gray-600 flex items-center gap-2"><ChevronLeft/> Voltar</button>
