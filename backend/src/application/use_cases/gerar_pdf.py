@@ -7,12 +7,11 @@ from PIL import Image
 import os
 
 
-def desenhar_pdf(rdo, obra):
+def desenhar_pdf(rdo, obra, eventos_timeline=[]):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     
-    # --- CORES E FONTES ---
     AZUL_ESCURO = colors.HexColor("#1e3a8a")
     CINZA_CLARO = colors.HexColor("#f3f4f6")
     CINZA_BORDA = colors.HexColor("#d1d5db")
@@ -20,7 +19,7 @@ def desenhar_pdf(rdo, obra):
     
     y = height - 40 
 
-    # CABEÇALHO GERAL
+    # CABEÇALHO
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "../../../assets/IanorthLog.png")
         if os.path.exists(logo_path):
@@ -28,7 +27,7 @@ def desenhar_pdf(rdo, obra):
             iw, ih = img.getSize()
             aspect = iw / ih
             c.drawImage(img, 10, y - 20, width=20*aspect, height=20, mask='auto')
-    except: pass
+    except: pass:
 
     c.setFillColor(AZUL_ESCURO)
     c.setFont("Helvetica-Bold", 16)
@@ -60,7 +59,6 @@ def desenhar_pdf(rdo, obra):
         c.drawString(30, current_y, f"{label1}:")
         c.setFont("Helvetica", 8)
         c.drawString(100, current_y, str(val1 or "---")[:55])
-        
         if label2:
             c.setFont("Helvetica-Bold", 8)
             c.drawString(320, current_y, f"{label2}:")
@@ -89,18 +87,11 @@ def desenhar_pdf(rdo, obra):
     # EQUIPE
     indiretos = []
     diretos = []
-    
     if rdo.efetivo:
         for ef in rdo.efetivo:
             texto = ef.FUNCAO or ""
             nome_limpo = texto.replace("[IND]", "").replace("[DIR]", "").strip()
-            funcao_cargo = "Colaborador"
-            if "(" in nome_limpo and ")" in nome_limpo:
-                partes = nome_limpo.split("(")
-                nome_limpo = partes[0].strip()
-                funcao_cargo = partes[1].replace(")", "").strip()
-            
-            item = {"nome": nome_limpo, "cargo": funcao_cargo}
+            item = {"nome": nome_limpo, "cargo": "Colaborador"}
             if "[IND]" in texto: indiretos.append(item)
             else: diretos.append(item)
 
@@ -114,32 +105,24 @@ def desenhar_pdf(rdo, obra):
 
     if indiretos:
         y -= 10
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(colors.black); c.setFont("Helvetica-Bold", 9)
         c.drawString(30, y, "1.1 Equipe Indireta (Gestão & Apoio)")
-        y -= 15
-        c.setFont("Helvetica", 8)
+        y -= 15; c.setFont("Helvetica", 8)
         for ind in indiretos:
             y = check_page(y)
             c.drawString(40, y, f"• {ind['nome']}")
-            c.drawRightString(width-40, y, ind['cargo'])
-            c.setStrokeColor(CINZA_CLARO)
-            c.line(40, y-2, width-40, y-2)
+            c.setStrokeColor(CINZA_CLARO); c.line(40, y-2, width-40, y-2)
             y -= 12
 
     if diretos:
         y -= 10
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(colors.black); c.setFont("Helvetica-Bold", 9)
         c.drawString(30, y, "1.2 Equipe Direta (Execução)")
-        y -= 15
-        c.setFont("Helvetica", 8)
+        y -= 15; c.setFont("Helvetica", 8)
         for dir in diretos:
             y = check_page(y)
             c.drawString(40, y, f"• {dir['nome']}")
-            c.drawRightString(width-40, y, dir['cargo'])
-            c.setStrokeColor(CINZA_CLARO)
-            c.line(40, y-2, width-40, y-2)
+            c.setStrokeColor(CINZA_CLARO); c.line(40, y-2, width-40, y-2)
             y -= 12
 
     # EQUIPAMENTOS
@@ -152,17 +135,15 @@ def desenhar_pdf(rdo, obra):
         c.setFont("Helvetica-Bold", 10)
         c.drawString(40, y + 6, "2. EQUIPAMENTOS UTILIZADOS")
         y -= 20
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.black); c.setFont("Helvetica", 8)
         for eq in rdo.equipamentos:
             y = check_page(y)
             c.drawString(40, y, f"• {eq.DESCRICAO}")
             c.drawRightString(width-40, y, f"{eq.QUANTIDADE} un.")
-            c.setStrokeColor(CINZA_CLARO)
-            c.line(40, y-2, width-40, y-2)
+            c.setStrokeColor(CINZA_CLARO); c.line(40, y-2, width-40, y-2)
             y -= 12
 
-    # ATIVIDADES (CORRIGIDO PARA QUEBRA DE LINHA)
+    # ATIVIDADES
     def draw_text_block(titulo, texto, current_y):
         current_y -= 15
         current_y = check_page(current_y, 80)
@@ -172,23 +153,20 @@ def desenhar_pdf(rdo, obra):
         c.setFont("Helvetica-Bold", 10)
         c.drawString(40, current_y + 6, titulo)
         current_y -= 20
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.black); c.setFont("Helvetica", 9)
         
         text_obj = c.beginText(40, current_y - 10)
         text_obj.setFont("Helvetica", 9)
         text_obj.setLeading(12)
         
         conteudo = str(texto or "Nada a declarar.")
-        
         paragrafos = conteudo.split('\n')
         
         for paragrafo in paragrafos:
             words = paragrafo.split(' ')
             line = ""
             for word in words:
-                if len(line + word) < 95: 
-                    line += word + " "
+                if len(line + word) < 95: line += word + " "
                 else:
                     text_obj.textLine(line)
                     current_y -= 12
@@ -201,30 +179,22 @@ def desenhar_pdf(rdo, obra):
 
     y = draw_text_block("3. DESCRIÇÃO DAS ATIVIDADES EXECUTADAS", rdo.DESCRICAO, y)
 
-    # CLIMA E OBSERVAÇÕES (CORRIGIDO PARA QUEBRA DE LINHA)
-    y -= 15
-    y = check_page(y, 100)
-
+    # CLIMA E OBSERVAÇÕES
+    y -= 15; y = check_page(y, 100)
     c.setFillColor(AZUL_ESCURO)
     c.rect(30, y, width-60, 20, fill=1, stroke=0)
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y + 6, "4. CLIMA, CONDIÇÕES E OBSERVAÇÕES")
     y -= 30
 
-    # Lógica para separar a string "CLIMA: ... OBS: ..."
     raw_nota = rdo.NOTA or ""
-    clima_manha = "N/A"
-    clima_tarde = "N/A"
-    cond_area = "N/A"
-    obs_texto = raw_nota 
+    clima_manha = "N/A"; clima_tarde = "N/A"; cond_area = "N/A"; obs_texto = raw_nota 
 
     if "CLIMA:" in raw_nota and "OBS:" in raw_nota:
         try:
             parts = raw_nota.split("OBS:")
             obs_texto = parts[1].strip() or "Sem observações adicionais."
             meta = parts[0]
-            
             if "ÁREA:" in meta:
                 meta_parts = meta.split("ÁREA:")
                 cond_area = meta_parts[1].replace(".", "").strip()
@@ -233,113 +203,110 @@ def desenhar_pdf(rdo, obra):
                     c_parts = clima_part.split("/T:")
                     clima_manha = c_parts[0].replace("M:", "").strip()
                     clima_tarde = c_parts[1].replace(".", "").strip()
-        except:
-            pass 
+        except: pass 
 
-    # DESENHA CLIMA E ÁREA
     c.setFillColor(colors.black)
-    
-    c.setFont("Helvetica-Bold", 8); c.drawString(40, y, "CLIMA MANHÃ:")
-    c.setFont("Helvetica", 9); c.drawString(110, y, clima_manha)
-    
-    c.setFont("Helvetica-Bold", 8); c.drawString(200, y, "CLIMA TARDE:")
-    c.setFont("Helvetica", 9); c.drawString(270, y, clima_tarde)
-    
-    c.setFont("Helvetica-Bold", 8); c.drawString(380, y, "CONDIÇÃO ÁREA:")
-    c.setFont("Helvetica", 9); c.drawString(460, y, cond_area)
-    
+    c.setFont("Helvetica-Bold", 8); c.drawString(40, y, "CLIMA MANHÃ:"); c.setFont("Helvetica", 9); c.drawString(110, y, clima_manha)
+    c.setFont("Helvetica-Bold", 8); c.drawString(200, y, "CLIMA TARDE:"); c.setFont("Helvetica", 9); c.drawString(270, y, clima_tarde)
+    c.setFont("Helvetica-Bold", 8); c.drawString(380, y, "CONDIÇÃO ÁREA:"); c.setFont("Helvetica", 9); c.drawString(460, y, cond_area)
     y -= 25 
 
-    #  DESENHA OBSERVAÇÕES 
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(40, y, "OBSERVAÇÕES GERAIS:")
+    c.setFont("Helvetica-Bold", 9); c.drawString(40, y, "OBSERVAÇÕES GERAIS:")
     y -= 15
-    
     c.setFont("Helvetica", 9)
-    
-    text_obj = c.beginText(40, y)
-    text_obj.setFont("Helvetica", 9)
-    text_obj.setLeading(12)
-    
+    text_obj = c.beginText(40, y); text_obj.setFont("Helvetica", 9); text_obj.setLeading(12)
     paragrafos_obs = obs_texto.split('\n')
-    
     for paragrafo in paragrafos_obs:
         words = paragrafo.split(' ')
         line = ""
         for word in words:
-            if len(line + word) < 95: 
-                line += word + " "
+            if len(line + word) < 95: line += word + " "
             else:
                 text_obj.textLine(line)
                 y -= 12
                 line = word + " "
-        text_obj.textLine(line)
-        y -= 12
-
+        text_obj.textLine(line); y -= 12
     c.drawText(text_obj)
-    
     y -= 10 
 
-    # PENDÊNCIAS
-    if rdo.PENDENCIA:
-        y = draw_text_block("5. OCORRÊNCIAS / PENDÊNCIAS", rdo.PENDENCIA, y)
+    if rdo.PENDENCIA: y = draw_text_block("5. OCORRÊNCIAS / PENDÊNCIAS", rdo.PENDENCIA, y)
+
+    # --- CRONOGRAMA E ETAPAS 
+    if obra and obra.etapas:
+        y -= 15
+        y = check_page(y, 100)
+        c.setFillColor(AZUL_ESCURO)
+        c.rect(30, y, width-60, 20, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 10)
+        c.drawString(40, y + 6, "6. CRONOGRAMA E REGISTROS DAS ETAPAS")
+        y -= 25
+        
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 8); c.drawString(40, y, "ETAPA")
+        c.drawRightString(width-40, y, "STATUS"); y -= 10
+        c.setStrokeColor(CINZA_BORDA); c.line(30, y, width-30, y); y -= 10
+        
+        c.setFont("Helvetica", 8)
+        for etapa in obra.etapas:
+            y = check_page(y, 80) 
+            c.setFillColor(colors.black)
+            c.drawString(40, y, f"{etapa.ORDEM}. {etapa.NOME_ETAPA}")
+            
+            status = etapa.STATUS or "PENDENTE"
+            if status == "CONCLUIDO": c.setFillColor(colors.green)
+            elif status == "EM ANDAMENTO": c.setFillColor(LARANJA)
+            else: c.setFillColor(colors.gray)
+            c.drawRightString(width-40, y, status)
+            y -= 15
+
+            # FOTOS DA ETAPA 
+            fotos_etapa = [ev.FOTO for ev in eventos_timeline if ev.ID_ETAPA == etapa.ID and ev.FOTO]
+            if fotos_etapa:
+                y_fotos = y
+                x_foto = 60
+                for f_data in fotos_etapa:
+                    try:
+                        img = ImageReader(BytesIO(f_data))
+                        c.drawImage(img, x_foto, y_fotos - 50, width=66, height=50, mask='auto')
+                        x_foto += 70
+                    except: pass
+                y -= 60 
+            
+            c.setStrokeColor(CINZA_CLARO); c.line(40, y, width-40, y); y -= 10
 
     # ASSINATURAS
     y -= 40
     y = check_page(y, 60)
-    
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    
-    c.line(50, y, 250, y)
-    c.line(300, y, 500, y)
-    
+    c.setStrokeColor(colors.black); c.setLineWidth(1)
+    c.line(50, y, 250, y); c.line(300, y, 500, y)
     y -= 12
     c.setFont("Helvetica", 8)
     c.drawCentredString(150, y, "Responsável Técnico (IANORTH)")
     c.drawCentredString(400, y, "Fiscalização / Cliente")
 
-    # FOTOS
+    # FOTOS DO RDO FINAL 
     if rdo.fotos:
         c.showPage()
         height = A4[1]
-        
-        c.setFillColor(AZUL_ESCURO)
-        c.rect(0, height - 50, width, 50, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width/2, height - 30, f"REGISTRO FOTOGRÁFICO - RDO {rdo.ID}")
-        
-        y = height - 80
-        x_start = 40
-        x = x_start
-        photo_w = 240
-        photo_h = 180
-        
+        c.setFillColor(AZUL_ESCURO); c.rect(0, height - 50, width, 50, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width/2, height - 30, f"REGISTRO FOTOGRÁFICO - RDO FINAL")
+        y = height - 80; x_start = 40; x = x_start; photo_w = 240; photo_h = 180
         for i, foto in enumerate(rdo.fotos):
-            if y < 200:
-                c.showPage()
-                y = height - 50
-                x = x_start
-            
+            if y < 200: c.showPage(); y = height - 50; x = x_start
             try:
                 if foto.ARQUIVO:
-                    img_bytes = BytesIO(foto.ARQUIVO)
-                    img = ImageReader(img_bytes)
+                    img = ImageReader(BytesIO(foto.ARQUIVO))
                     c.drawImage(img, x, y - photo_h, width=photo_w, height=photo_h, mask='auto')
-                    c.setStrokeColor(colors.gray); c.setLineWidth(0.5)
-                    c.rect(x, y - photo_h, photo_w, photo_h, fill=0)
-                    
                     if x == x_start: x += 270 
-                    else:
-                        x = x_start
-                        y -= 210
-            except Exception as e:
-                print(f"Erro foto {i}: {e}")
+                    else: x = x_start; y -= 210
+            except: pass
 
     c.save()
     buffer.seek(0)
     return buffer
+
+
 
 def desenhar_orcamento(obra, itens):
     buffer = BytesIO()

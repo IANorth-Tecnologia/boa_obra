@@ -142,7 +142,17 @@ const sincronizarTudo = async () => {
 
 
   const baixarPDF = (id: number) => window.open(`${api.defaults.baseURL}/rdo/${id}/pdf`, '_blank');
-  const deletarLocal = async (id: number) => { if(confirm("Excluir?")) { await db.rdos.delete(id); carregarDados(); } };
+  
+  const deletarDoHistorico = async (id: number) => {
+      if(confirm("Tem certeza que deseja excluir este RDO permanentemente?")) {
+          try {
+              await api.delete(`/rdo/${id}`);
+              carregarDados();
+          } catch (e) {
+              alert("Erro ao excluir RDO.");
+          }
+      }
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 pb-24">
@@ -196,7 +206,6 @@ const sincronizarTudo = async () => {
 
         {!isGestao && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Minha Produtividade */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border">
                     <h3 className="text-gray-500 text-xs font-bold uppercase mb-4 flex items-center gap-2">
                         <Briefcase size={16}/> Minha Produtividade (Mês)
@@ -242,7 +251,12 @@ const sincronizarTudo = async () => {
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-100 text-gray-600 font-bold uppercase text-xs">
-                        <tr><th className="p-4">Data</th><th className="p-4">Obra</th><th className="p-4">Status</th><th className="p-4 text-center">PDF</th></tr>
+                        <tr>
+                            <th className="p-4">Data</th>
+                            <th className="p-4">Obra</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-center">Ações</th>
+                        </tr>
                     </thead>
                     <tbody className="divide-y">
                         {rdosHistorico.length === 0 ? (
@@ -253,7 +267,11 @@ const sincronizarTudo = async () => {
                                     <td className="p-4 text-gray-600 font-mono">{new Date(rdo.DATA).toLocaleDateString()}</td>
                                     <td className="p-4 font-medium text-gray-800">{rdo.OBRA}</td>
                                     <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold border ${rdo.STATUS === 'CONCLUIDO' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>{rdo.STATUS}</span></td>
-                                    <td className="p-4 text-center"><button onClick={() => baixarPDF(rdo.ID)} className="text-gray-400 hover:text-blue-600"><Printer size={18}/></button></td>
+                                    <td className="p-4 text-center flex justify-center gap-2">
+                                        <button onClick={() => baixarPDF(rdo.ID)} className="text-gray-400 hover:text-blue-600" title="Baixar PDF"><Printer size={18}/></button>
+                                        {/* Botão de Excluir */}
+                                        <button onClick={() => deletarDoHistorico(rdo.ID)} className="text-red-300 hover:text-red-600" title="Excluir RDO"><Trash2 size={18}/></button>
+                                    </td>
                                 </tr>
                             ))
                         )}
