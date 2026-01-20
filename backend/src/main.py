@@ -7,7 +7,7 @@ from datetime import datetime
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
-    from backports.zoneinfo import ZoneInfo 
+    from backports.zoneinfo import ZoneInfo
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -173,6 +173,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None: raise HTTPException(status_code=401, detail="Usuário não encontrado")
     if user.STATUS != 1: raise HTTPException(status_code=401, detail="Usuário desativado. Acesso negado.")
     return user
+
+@app.post("/token")
+def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.TFuncionario).filter(
+        (models.TFuncionario.CPF == form_data.username) |
+        (models.TFuncionario.MATRICULA == form_data.username)
+    ).first()
+
+    if not user or not verificar_senha(form_data.password, user.SENHA_HASH):
+        raise HTTPException(status_code=400, detail="Credenciais inválidas")
+
+    if user.STATUS != 1:
+        raise HTTPException(status_code=403, detail="Acesso bloqueado. Contate o administrador.")
+
+    token = criar_token_acesso(data={"sub": user.NOME, "id": user.ID, "perfil": user.PERFIL})
+    return {"access_token": token, "token_type": "bearer", "perfil": user.PERFIL, "nome": user.NOME}
+
 
 @app.get("/atividades")
 def listar_atividades(db: Session = Depends(get_db)):
@@ -415,8 +432,9 @@ def finalizar_rdo_completo(rdo_id: int, dados: RDOFinalizacao, db: Session = Dep
 @app.delete("/rdo/{rdo_id}")
 def deletar_rdo(rdo_id: int, db: Session = Depends(get_db)):
     rdo = db.query(models.TServico).filter(models.TServico.ID == rdo_id).first()
-    if not rdo: raise HTTPException(404, "RDO não encontrado")
+    if not rdo: raise HTTPException(status_code=404, "RDO não encontrado")
     
+    # Remove dependências
     db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
     db.query(models.TRDO_Equipamento).filter_by(ID_SERVICO=rdo_id).delete()
     db.query(models.TRDO_Foto).filter_by(ID_SERVICO=rdo_id).delete()
