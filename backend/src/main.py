@@ -189,10 +189,11 @@ def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
     token = criar_token_acesso(data={"sub": user.NOME, "id": user.ID, "perfil": user.PERFIL})
     return {"access_token": token, "token_type": "bearer", "perfil": user.PERFIL, "nome": user.NOME}
 
+
 @app.get("/atividades")
 def listar_atividades(
     db: Session = Depends(get_db),
-    current_user: models.TFuncionario = Depends(get_current_user) 
+    current_user: models.TFuncionario = Depends(get_current_user)
 ):
     if not db.query(models.TLocalServico).filter_by(ID=1).first():
         try:
@@ -201,12 +202,12 @@ def listar_atividades(
         except: db.rollback()
     
     query = db.query(models.TAtividade)
-
-    if current_user.PERFIL not in ['ADMIN', 'GESTOR', 'ENGENHEIRO']:
-        pass 
-
+    
+    # Se quiser restringir obras por usuário no futuro, descomente a lógica abaixo:
+    # if current_user.PERFIL == 'COLABORADOR':
+    #     query = query.filter(models.TAtividade.ID_RESPONSAVEL == current_user.ID)
+    
     return query.all()
-
 
 @app.get("/precos", response_model=List[ItemPrecoRead])
 def buscar_precos(q: Optional[str] = None, db: Session = Depends(get_db)):
@@ -242,33 +243,39 @@ def ver_foto_funcionario(id: int, db: Session = Depends(get_db)):
 def listar_equipamentos(db: Session = Depends(get_db)):
     return db.query(models.TEquipamento).all()
 
+# --- DASHBOARD COM FILTRO ---
 @app.get("/dashboard/stats")
 def get_dashboard_stats(
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-    ):
+    current_user: models.TFuncionario = Depends(get_current_user)
+):
+    # KPIs GLOBAIS (Só Admin/Gestor vê o total da empresa)
+    total_colaboradores = 0
+    total_obras_ativas = 0
+    
+    if current_user.PERFIL in ['ADMIN', 'GESTOR', 'ENGENHEIRO', 'ADMINISTRATIVO', 'GERENTE']:
+        total_colaboradores = db.query(models.TFuncionario).filter(models.TFuncionario.STATUS == 1).count()
+        total_obras_ativas = db.query(models.TAtividade).count()
 
-    current_user = None
-    try:
-        current_user = asyncio.run(get_current_user(token, db)) 
-    except: pass
-
-    total_colaboradores = db.query(models.TFuncionario).filter(models.TFuncionario.STATUS == 1).count()
-    total_obras_ativas = db.query(models.TAtividade).count()
     hoje = agora_br().date()
     inicio_mes = hoje.replace(day=1)
-    rdos_hoje = db.query(models.TServico).filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
-    rdos_mes = db.query(models.TServico).filter(models.TServico.DATAINICIO >= inicio_mes).count()
-    status_counts = db.query(models.TServico.STATUS_DIA, func.count(models.TServico.ID)).filter(models.TServico.DATAINICIO >= inicio_mes).group_by(models.TServico.STATUS_DIA).all()
-    status_dict = {s: c for s, c in status_counts if s}
+
+    # 3. CONSULTA BASE (Filtrada por usuário)
+    query_base = db.query(models.TServico)
+
+    if current_user.PERFIL == 'COLABORADOR':
+        query_base = query_base.filter(models.TServico.ID_RESPONSAVEL == current_user.ID)
+
+    rdos_hoje = query_base.filter(cast(models.TServico.DATAINICIO, Date) == hoje).count()
+    rdos_mes = query_base.filter(models.TServico.DATAINICIO >= inicio_mes).count()
     
-    pendencias = db.query(models.TServico).filter(
+    query_pendencias = query_base.filter(
         models.TServico.STATUS_DIA != 'CONCLUIDO',
         models.TServico.DATAINICIO >= inicio_mes
-    ).order_by(desc(models.TServico.DATAINICIO)).limit(5).all()
+    ).order_by(desc(models.TServico.DATAINICIO)).limit(5)
 
     alertas = []
-    for p in pendencias:
+    for p in query_pendencias.all():
         obra = db.query(models.TAtividade).filter(models.TAtividade.ID == p.CODATIVIDADE).first()
         nome_obra = obra.DESCRICAO if obra else f"ID {p.CODATIVIDADE}"
         alertas.append({
@@ -293,8 +300,8 @@ def get_dashboard_stats(
     }
 
 @app.get("/admin/dashboard/stats")
-def get_dashboard_stats_admin(db: Session = Depends(get_db)):
-    return get_dashboard_stats(db)
+def get_dashboard_stats_admin(db: Session = Depends(get_db), current_user: models.TFuncionario = Depends(get_current_user)):
+    return get_dashboard_stats(db, current_user)
 
 @app.get("/propostas")
 def listar_propostas(db: Session = Depends(get_db)):
@@ -392,6 +399,10 @@ async def registrar_evento_rdo(
     query = db.query(models.TServico).filter(models.TServico.CODATIVIDADE == ID_ATIVIDADE, cast(models.TServico.DATAINICIO, Date) == hoje)
     if id_etapa_db: query = query.filter(models.TServico.ID_ETAPA == id_etapa_db)
     else: query = query.filter(models.TServico.ID_ETAPA == None)
+    
+    if current_user.PERFIL == 'COLABORADOR':
+        query = query.filter(models.TServico.ID_RESPONSAVEL == current_user.ID)
+
     rdo = query.first()
 
     if not rdo:
@@ -670,11 +681,10 @@ def baixar_pdf_rdo(rdo_id: int, db: Session = Depends(get_db)):
     nome_arquivo = f"RDO_{rdo_id}_{data_str}.pdf"
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"})
 
-
 @app.get("/rdos")
 def listar_todos_rdos(
     db: Session = Depends(get_db),
-    current_user: models.TFuncionario = Depends(get_current_user) 
+    current_user: models.TFuncionario = Depends(get_current_user)
 ):
     query = db.query(models.TServico)
 
@@ -694,7 +704,6 @@ def listar_todos_rdos(
             "ID": rdo.ID, "DATA": data_fmt, "OBRA": nome_obra, "STATUS": rdo.STATUS_DIA, "DESCRICAO": rdo.DESCRICAO
         })
     return resultado
-
 
 @app.get("/orcamentos/{id_atividade}/pdf")
 def baixar_pdf_orcamento(id_atividade: int, db: Session = Depends(get_db)):
