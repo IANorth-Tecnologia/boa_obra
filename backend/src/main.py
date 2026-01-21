@@ -190,24 +190,22 @@ def login_para_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
     return {"access_token": token, "token_type": "bearer", "perfil": user.PERFIL, "nome": user.NOME}
 
 @app.get("/atividades")
-def listar_atividades(db: Session = Depends(get_db),
-    current_user: models.TFuncionario = Depends(get_current_user)
-    ):
-
-
+def listar_atividades(
+    db: Session = Depends(get_db),
+    current_user: models.TFuncionario = Depends(get_current_user) 
+):
     if not db.query(models.TLocalServico).filter_by(ID=1).first():
         try:
             if not db.query(models.TAtividade).first(): db.add(models.TLocalServico(ID=1, DESCRICAO="Local Geral"))
             db.commit()
         except: db.rollback()
-
+    
     query = db.query(models.TAtividade)
 
     if current_user.PERFIL not in ['ADMIN', 'GESTOR', 'ENGENHEIRO']:
-        pass
+        pass 
 
     return query.all()
-
 
 
 @app.get("/precos", response_model=List[ItemPrecoRead])
@@ -245,7 +243,8 @@ def listar_equipamentos(db: Session = Depends(get_db)):
     return db.query(models.TEquipamento).all()
 
 @app.get("/dashboard/stats")
-def get_dashboard_stats(db: Session = Depends(get_db),
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
     ):
 
@@ -671,24 +670,20 @@ def baixar_pdf_rdo(rdo_id: int, db: Session = Depends(get_db)):
     nome_arquivo = f"RDO_{rdo_id}_{data_str}.pdf"
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"})
 
+
 @app.get("/rdos")
-def listar_todos_rdos(db: Session = Depends(get_db), 
-
-    current_user: models.TFuncionario = Depends(get_current_user)
-    ):
-
+def listar_todos_rdos(
+    db: Session = Depends(get_db),
+    current_user: models.TFuncionario = Depends(get_current_user) 
+):
     query = db.query(models.TServico)
-
 
     if current_user.PERFIL == 'COLABORADOR':
         query = query.filter(models.TServico.ID_RESPONSAVEL == current_user.ID)
 
-
     lista = query.order_by(desc(models.TServico.DATAINICIO)).limit(200).all()
-
-
+    
     resultado = []
-
     for rdo in lista:
         obra = db.query(models.TAtividade).filter(models.TAtividade.ID == rdo.CODATIVIDADE).first()
         nome_obra = obra.DESCRICAO if obra else "Obra não encontrada"
@@ -699,6 +694,7 @@ def listar_todos_rdos(db: Session = Depends(get_db),
             "ID": rdo.ID, "DATA": data_fmt, "OBRA": nome_obra, "STATUS": rdo.STATUS_DIA, "DESCRICAO": rdo.DESCRICAO
         })
     return resultado
+
 
 @app.get("/orcamentos/{id_atividade}/pdf")
 def baixar_pdf_orcamento(id_atividade: int, db: Session = Depends(get_db)):
