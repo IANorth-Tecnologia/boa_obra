@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from sqlalchemy.orm import Session, defer, joinedload
 from sqlalchemy import or_, desc, func, case, cast, Date
 from typing import List, Optional
@@ -389,14 +389,27 @@ async def registrar_evento_rdo(
     ID_ETAPA: Optional[int] = Form(None), 
     TIPO_EVENTO: str = Form(...), 
     OBSERVACAO: str = Form(""),
+    DATA_PERSONALIZADA: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.TFuncionario = Depends(get_current_user)
 ):
-    hoje = agora_br().date()
+
+    if DATA_PERSONALIZADA:
+        try:
+            data_ref = datetime.strptime(DATA_PERSONALIZADA, "%Y-%m-%d").date()
+            agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+            momento_registro = agora.replace(year=data_ref.year, month=data_ref.month, day=data_ref.day)
+        except ValueError:
+            raise HTTPException(400, "Formato de data inválido. AAAA-MM-DD")
+    else:
+        momento_registro = agora_br()
+        data_ref = momento_registro.date()
+
     id_etapa_db = ID_ETAPA if ID_ETAPA and ID_ETAPA > 0 else None
     
-    query = db.query(models.TServico).filter(models.TServico.CODATIVIDADE == ID_ATIVIDADE, cast(models.TServico.DATAINICIO, Date) == hoje)
+    query = db.query(models.TServico).filter(models.TServico.CODATIVIDADE == ID_ATIVIDADE, cast(models.TServico.DATAINICIO, Date) == data_ref
+    )
     if id_etapa_db: query = query.filter(models.TServico.ID_ETAPA == id_etapa_db)
     else: query = query.filter(models.TServico.ID_ETAPA == None)
     
@@ -410,7 +423,8 @@ async def registrar_evento_rdo(
             rdo = models.TServico(
                 CODATIVIDADE=ID_ATIVIDADE, ID_ETAPA=id_etapa_db, ID_RESPONSAVEL=current_user.ID,
                 DESCRICAO=f"Acompanhamento Diário" if id_etapa_db else "Diário Geral / Administrativo",
-                DATAINICIO=agora_br(), STATUS_DIA="EM ANDAMENTO"
+                DATAINICIO=momento_registro, 
+                STATUS_DIA="EM ANDAMENTO"
             )
             db.add(rdo)
             db.commit()
@@ -427,7 +441,7 @@ async def registrar_evento_rdo(
             print(f"Erro ao ler arquivo: {e}")
     
     novo_evento = models.TRDO_Detalhado(
-        ID_ETAPA=id_etapa_db, ID_FUNCIONARIO=current_user.ID, DATA_HORA_REGISTRO=agora_br(),
+        ID_ETAPA=id_etapa_db, ID_FUNCIONARIO=current_user.ID, DATA_HORA_REGISTRO=momento_registro,
         TIPO_EVENTO=TIPO_EVENTO, OBSERVACAO=OBSERVACAO, FOTO=foto_bytes
     )
     db.add(novo_evento)
@@ -436,15 +450,23 @@ async def registrar_evento_rdo(
     elif TIPO_EVENTO == "RETOMADA": rdo.STATUS_DIA = "EM ANDAMENTO"
     elif TIPO_EVENTO == "CONCLUSAO":
         rdo.STATUS_DIA = "CONCLUIDO"
-        rdo.DATAFIM = agora_br()
+        rdo.DATAFIM = momento_registro
 
     db.commit()
     return {"msg": "Evento registrado", "status_atual": rdo.STATUS_DIA, "rdo_id": rdo.ID}
 
 
 @app.get("/rdo/timeline/{id_atividade}/{id_etapa}")
-def obter_timeline(id_atividade: int, id_etapa: int, db: Session = Depends(get_db)):
-    hoje = agora_br().date()
+def obter_timeline(
+        id_atividade: int,
+        id_etapa: int,
+        data: Optional[str] = Query(None),
+        db: Session = Depends(get_db)
+):
+    if data:
+        try: hoje = datetime.strptime(data, "%Y-%m-%d").date()
+        except: hoje = agora_br().date()
+
     id_etapa_db = id_etapa if id_etapa > 0 else None
     
     query_eventos = db.query(models.TRDO_Detalhado).filter(cast(models.TRDO_Detalhado.DATA_HORA_REGISTRO, Date) == hoje)
@@ -501,6 +523,7 @@ def deletar_rdo(rdo_id: int, db: Session = Depends(get_db)):
     db.query(models.TRDO_Efetivo).filter_by(ID_SERVICO=rdo_id).delete()
     db.query(models.TRDO_Equipamento).filter_by(ID_SERVICO=rdo_id).delete()
     db.query(models.TRDO_Foto).filter_by(ID_SERVICO=rdo_id).delete()
+    db.query(models.TRDO_Detalhado).filter_by(ID_ETAPA=rdo.ID_ETAPA, ID_FUNCIONARIO=rdo.ID_RESPONSAVEL).delete()
     
     db.delete(rdo)
     db.commit()

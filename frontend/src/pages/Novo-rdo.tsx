@@ -4,7 +4,8 @@ import {
     Play, Pause, CheckSquare, Camera, Clock, 
     ChevronDown, History, Truck, Save, 
     HardHat, Briefcase, ChevronRight, ChevronLeft, X,
-    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus, Search
+    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus, Search,
+    Calendar
 } from 'lucide-react';
 
 const CARGOS_GESTAO = [
@@ -99,6 +100,8 @@ export default function NovoRDO() {
     const [obraSelecionada, setObraSelecionada] = useState<string>('');
     const [etapas, setEtapas] = useState<any[]>([]);
     const [etapaSelecionada, setEtapaSelecionada] = useState<any>(null);
+
+    const [dataRetroativa, setDataRetroativa] = useState<string>('')
     
     // Dados para os SmartInputs (Formatados como {label, value})
     const [opcoesGestao, setOpcoesGestao] = useState<any[]>([]);
@@ -171,7 +174,7 @@ export default function NovoRDO() {
             if (etapaSelecionada.ID === 0) iniciarRdoGeral();
             else carregarTimeline();
         }
-    }, [etapaSelecionada]);
+    }, [etapaSelecionada, dataRetroativa]);
 
     const iniciarRdoGeral = async () => {
         try {
@@ -179,6 +182,8 @@ export default function NovoRDO() {
             formData.append('ID_ATIVIDADE', obraSelecionada);
             formData.append('ID_ETAPA', '0'); 
             formData.append('TIPO_EVENTO', 'INICIO');
+            if (dataRetroativa) formData.append('DATA_PERSONALIZADA', dataRetroativa);
+
             const res = await api.post('/rdo/evento', formData);
             setRdoId(res.data.rdo_id);
             setModalWizardAberto(true);
@@ -187,7 +192,10 @@ export default function NovoRDO() {
 
     const carregarTimeline = async () => {
         try {
-            const res = await api.get(`/rdo/timeline/${obraSelecionada}/${etapaSelecionada.ID}`);
+            let url = `/rdo/timeline/${obraSelecionada}/${etapaSelecionada.ID}`;
+            if (dataRetroativa) += `?data=${dataRetroativa}`;
+
+            const res = await api.get(url);
             setStatusAtual(res.data.status);
             setTimeline(res.data.timeline);
             setRdoId(res.data.rdo_id);
@@ -202,6 +210,8 @@ export default function NovoRDO() {
             const evento = statusAtual === 'PAUSADO' ? 'RETOMADA' : 'INICIO';
             formData.append('TIPO_EVENTO', evento);
             formData.append('OBSERVACAO', evento === 'INICIO' ? 'Início dos trabalhos' : 'Retorno da pausa');
+            if (dataRetroativa) formData.append('DATA_PERSONALIZADA', dataRetroativa);
+
             await api.post('/rdo/evento', formData);
             carregarTimeline();
         } catch (error) { alert('Erro ao iniciar'); }
@@ -225,7 +235,7 @@ export default function NovoRDO() {
         try {
             const formData = new FormData();
             formData.append('ID_ATIVIDADE', String(obraSelecionada));
-            if (etapaSelecionada && etapaSelecionada.ID) {
+            if (etapaSelecionada && etapaSelecionada?.ID ? String(etapaSelecionada.ID) : '0'); {
                 formData.append('ID_ETAPA', String(etapaSelecionada.ID));
             } else {
                 formData.append('ID_ETAPA', '0');
@@ -299,6 +309,7 @@ export default function NovoRDO() {
                 fd.append('ID_ATIVIDADE', obraSelecionada);
                 fd.append('ID_ETAPA', String(etapaSelecionada.ID));
                 fd.append('TIPO_EVENTO', 'CONCLUSAO');
+                if (dataRetroativa) fd.append('DATA_PERSONALIZADA', dataRetroativa)
                 await api.post('/rdo/evento', fd);
             }
 
@@ -323,6 +334,20 @@ export default function NovoRDO() {
 
             {/* SELETORES */}
             <div className="bg-white p-4 rounded-xl shadow-sm border mb-4 space-y-3">
+
+                <div className="bg-blue-50 border border-blue-100 p-2 rounded-lg">
+                    <label className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1 mb-1">
+                        <Calendar size={14}/> Data do RDO
+                    </label>
+                    <input 
+                        type="date" 
+                        className="w-full bg-white p-2 rounded border text-sm font-bold text-gray-700"
+                        value={dataRetroativa}
+                        onChange={e => setDataRetroativa(e.target.value)}
+                    />
+                    {!dataRetroativa && <div className="text-[10px] text-gray-400 mt-1">Deixe em branco para HOJE</div>}
+                </div>
+
                 <div className="relative">
                     <select className="w-full p-3 border rounded-lg bg-gray-50 font-bold appearance-none" value={obraSelecionada} onChange={e => setObraSelecionada(e.target.value)}>
                         <option value="">Selecione a Obra...</option>
