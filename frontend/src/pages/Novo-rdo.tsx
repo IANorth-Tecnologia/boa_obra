@@ -4,15 +4,13 @@ import {
     Play, Pause, CheckSquare, Camera, Clock, 
     ChevronDown, History, Truck, Save, 
     HardHat, Briefcase, ChevronRight, ChevronLeft, X,
-    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus, Search,
-    Calendar
+    Sun, Cloud, CloudRain, AlertCircle, PlayCircle, CheckCircle, PauseCircle, Upload, FileText, AlertTriangle, Trash2, Plus, Search, Calendar
 } from 'lucide-react';
 
 const CARGOS_GESTAO = [
     'ENGENHEIRO', 'MESTRE', 'ENCARREGADO', 'SUPERVISOR',
     'ADMINISTRATIVO', 'GERENTE', 'COORDENADOR', 'DIRETOR', 'FISCAL'
 ];
-
 
 const ClimaSelector = ({ periodo, value, onChange }: any) => {
     const opcoes = [
@@ -68,12 +66,9 @@ const SmartInput = ({ value, onChange, options, placeholder }: any) => {
                 onChange={(e) => { onChange(e.target.value); setShowList(true); }}
                 onFocus={() => setShowList(true)}
             />
-            {/* Ícone de busca visual */}
             <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none">
                 {showList ? <ChevronDown size={14}/> : <Search size={14}/>}
             </div>
-
-            {/* Lista Flutuante */}
             {showList && filteredOptions.length > 0 && (
                 <div className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-xl max-h-48 overflow-y-auto z-50 divide-y">
                     {filteredOptions.map((op: any, idx: number) => (
@@ -81,8 +76,8 @@ const SmartInput = ({ value, onChange, options, placeholder }: any) => {
                             key={idx} 
                             className="p-2 text-xs hover:bg-blue-50 cursor-pointer text-gray-700 uppercase"
                             onClick={() => {
-                                onChange(op.value); // Preenche o input
-                                setShowList(false); // Fecha lista
+                                onChange(op.value);
+                                setShowList(false);
                             }}
                         >
                             {op.label}
@@ -94,16 +89,14 @@ const SmartInput = ({ value, onChange, options, placeholder }: any) => {
     );
 };
 
-
 export default function NovoRDO() {
     const [obras, setObras] = useState<any[]>([]);
     const [obraSelecionada, setObraSelecionada] = useState<string>('');
     const [etapas, setEtapas] = useState<any[]>([]);
     const [etapaSelecionada, setEtapaSelecionada] = useState<any>(null);
-
-    const [dataRetroativa, setDataRetroativa] = useState<string>('')
     
-    // Dados para os SmartInputs (Formatados como {label, value})
+    const [dataRetroativa, setDataRetroativa] = useState<string>(''); 
+
     const [opcoesGestao, setOpcoesGestao] = useState<any[]>([]);
     const [opcoesOperacional, setOpcoesOperacional] = useState<any[]>([]);
     const [catalogoEquip, setCatalogoEquip] = useState<any[]>([]);
@@ -143,17 +136,13 @@ export default function NovoRDO() {
 
     useEffect(() => {
         api.get('/atividades').then(res => setObras(res.data));
-        
-        // Carrega e formata dados para o SmartInput
         api.get('/admin/equipamentos').then(res => {
             setCatalogoEquip(res.data.map((eq:any) => ({ label: eq.DESCRICAO, value: eq.DESCRICAO })));
         });
-
         api.get('/admin/funcionarios?apenas_ativos=true').then(res => {
             const todos = res.data;
             const gestao = todos.filter((f: any) => CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
             const operacional = todos.filter((f: any) => !CARGOS_GESTAO.some(cargo => f.FUNCAO.toUpperCase().includes(cargo)));
-            
             setOpcoesGestao(gestao.map((f:any) => ({ label: `${f.NOME} (${f.FUNCAO})`, value: `${f.NOME} (${f.FUNCAO})` })));
             setOpcoesOperacional(operacional.map((f:any) => ({ label: `${f.NOME} (${f.FUNCAO})`, value: `${f.NOME} (${f.FUNCAO})` })));
         });
@@ -183,7 +172,7 @@ export default function NovoRDO() {
             formData.append('ID_ETAPA', '0'); 
             formData.append('TIPO_EVENTO', 'INICIO');
             if (dataRetroativa) formData.append('DATA_PERSONALIZADA', dataRetroativa);
-
+            
             const res = await api.post('/rdo/evento', formData);
             setRdoId(res.data.rdo_id);
             setModalWizardAberto(true);
@@ -193,8 +182,8 @@ export default function NovoRDO() {
     const carregarTimeline = async () => {
         try {
             let url = `/rdo/timeline/${obraSelecionada}/${etapaSelecionada.ID}`;
-            if (dataRetroativa) += `?data=${dataRetroativa}`;
-
+            if (dataRetroativa) url += `?data=${dataRetroativa}`;
+            
             const res = await api.get(url);
             setStatusAtual(res.data.status);
             setTimeline(res.data.timeline);
@@ -235,16 +224,12 @@ export default function NovoRDO() {
         try {
             const formData = new FormData();
             formData.append('ID_ATIVIDADE', String(obraSelecionada));
-            if (etapaSelecionada && etapaSelecionada?.ID ? String(etapaSelecionada.ID) : '0'); {
-                formData.append('ID_ETAPA', String(etapaSelecionada.ID));
-            } else {
-                formData.append('ID_ETAPA', '0');
-            }
+            formData.append('ID_ETAPA', etapaSelecionada?.ID ? String(etapaSelecionada.ID) : '0');
             formData.append('TIPO_EVENTO', tipoAcao);
             formData.append('OBSERVACAO', obs);
-            if (fotoEvento instanceof File) {
-                formData.append('file', fotoEvento);
-            }
+            if (fotoEvento instanceof File) formData.append('file', fotoEvento);
+            if (dataRetroativa) formData.append('DATA_PERSONALIZADA', dataRetroativa);
+
             await api.post('/rdo/evento', formData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
@@ -252,7 +237,7 @@ export default function NovoRDO() {
             carregarTimeline();
         } catch (error) { 
             console.error(error);
-            alert('Erro ao salvar evento. Verifique a conexão.'); 
+            alert('Erro ao salvar evento.'); 
         } finally { 
             setLoading(false); 
         }
@@ -309,7 +294,7 @@ export default function NovoRDO() {
                 fd.append('ID_ATIVIDADE', obraSelecionada);
                 fd.append('ID_ETAPA', String(etapaSelecionada.ID));
                 fd.append('TIPO_EVENTO', 'CONCLUSAO');
-                if (dataRetroativa) fd.append('DATA_PERSONALIZADA', dataRetroativa)
+                if (dataRetroativa) fd.append('DATA_PERSONALIZADA', dataRetroativa);
                 await api.post('/rdo/evento', fd);
             }
 
@@ -334,7 +319,8 @@ export default function NovoRDO() {
 
             {/* SELETORES */}
             <div className="bg-white p-4 rounded-xl shadow-sm border mb-4 space-y-3">
-
+                
+                {/* SELETOR DE DATA RETROATIVA */}
                 <div className="bg-blue-50 border border-blue-100 p-2 rounded-lg">
                     <label className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1 mb-1">
                         <Calendar size={14}/> Data do RDO
@@ -391,8 +377,8 @@ export default function NovoRDO() {
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm p-4 mb-6 space-y-4 border">
-                        <h3 className="text-xs font-bold text-gray-500 uppercase flex gap-2"><History size={14}/> Histórico</h3>
-                        {timeline.length === 0 ? <p className="text-center text-gray-400 text-sm">Nenhum evento.</p> : timeline.map((ev, i) => (
+                        <h3 className="text-xs font-bold text-gray-500 uppercase flex gap-2"><History size={14}/> Histórico {dataRetroativa ? `(${dataRetroativa.split('-').reverse().join('/')})` : ''}</h3>
+                        {timeline.length === 0 ? <p className="text-center text-gray-400 text-sm">Nenhum evento registrado.</p> : timeline.map((ev, i) => (
                             <div key={i} className="flex gap-3 text-sm">
                                 <div className="font-bold text-gray-700 w-12">{ev.hora}</div>
                                 <div><div className="font-bold">{ev.tipo}</div>{ev.obs && <div className="text-gray-500 text-xs bg-gray-100 p-1 rounded mt-1">{ev.obs}</div>}</div>
@@ -402,19 +388,13 @@ export default function NovoRDO() {
                 </div>
             )}
 
-            {/* WIZARD MODAL - BOTÕES NO TOPO E INPUT INTELIGENTE */}
+            {/* WIZARD MODAL */}
             {modalWizardAberto && (
-                <div 
-                    className="fixed inset-0 z-[9999] flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" 
-                    style={{ height: '100dvh' }}
-                >
-                    {/* 1. Header (Título + Fechar) */}
+                <div className="fixed inset-0 z-[9999] flex flex-col w-full bg-gray-50 animate-in slide-in-from-bottom-full duration-300" style={{ height: '100dvh' }}>
                     <div className="bg-white p-4 shadow-sm flex items-center justify-between border-b shrink-0 h-16">
                         <h2 className="font-bold text-gray-800 text-lg">Finalizando o Dia</h2>
                         <button onClick={() => setModalWizardAberto(false)}><X className="text-gray-500"/></button>
                     </div>
-
-                    {/* 2. BARRA DE AÇÕES (NO TOPO) */}
                     <div className="bg-white p-2 px-4 border-b flex justify-between items-center shrink-0 gap-3">
                         <div className="w-1/3">
                             {passoWizard > 1 && (
@@ -436,17 +416,12 @@ export default function NovoRDO() {
                             )}
                         </div>
                     </div>
-
-                    {/* 3. Barra de Progresso Visual */}
                     <div className="flex gap-1 h-1 bg-gray-200 shrink-0">
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 1 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 2 ? 'opacity-100' : 'opacity-0'}`}></div>
                         <div className={`h-full bg-blue-600 transition-all w-1/3 ${passoWizard >= 3 ? 'opacity-100' : 'opacity-0'}`}></div>
                     </div>
-
-                    {/* 4. Conteúdo com Scroll */}
                     <div className="flex-1 overflow-y-auto p-4 pb-24">
-
                         {passoWizard === 1 && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
                                 <h3 className="font-bold text-lg text-gray-700">1. Status e Condições</h3>
@@ -471,7 +446,6 @@ export default function NovoRDO() {
                                 </section>
                             </div>
                         )}
-
                         {passoWizard === 2 && (
                              <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
                                 <h3 className="font-bold text-lg text-gray-700">2. Recursos Utilizados</h3>
@@ -479,13 +453,7 @@ export default function NovoRDO() {
                                     <div>
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-blue-600 uppercase flex gap-1"><Briefcase size={14}/> Indireta (Gestão)</span></div>
                                         <div className="flex gap-2 mb-3">
-                                            {/* SMART INPUT: DIGITA E FILTRA */}
-                                            <SmartInput 
-                                                value={tempIndireta}
-                                                onChange={setTempIndireta}
-                                                options={opcoesGestao}
-                                                placeholder="Busque ou digite..."
-                                            />
+                                            <SmartInput value={tempIndireta} onChange={setTempIndireta} options={opcoesGestao} placeholder="Busque ou digite..." />
                                             <button onClick={addIndireta} className="bg-blue-600 text-white p-2 rounded"><Plus size={18}/></button>
                                         </div>
                                         {listaIndireta.length > 0 && <div className="space-y-1">{listaIndireta.map((nome, idx) => (<div key={idx} className="flex justify-between items-center bg-blue-50 p-2 rounded border border-blue-100 text-sm"><span className="text-blue-800 font-bold">{nome}</span><button onClick={() => removeIndireta(idx)} className="text-red-400"><Trash2 size={14}/></button></div>))}</div>}
@@ -493,13 +461,7 @@ export default function NovoRDO() {
                                     <div className="border-t pt-4">
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-green-600 uppercase flex gap-1"><HardHat size={14}/> Direta (Execução)</span></div>
                                         <div className="flex gap-2 mb-3">
-                                            {/* SMART INPUT: DIGITA E FILTRA */}
-                                            <SmartInput 
-                                                value={tempDireta}
-                                                onChange={setTempDireta}
-                                                options={opcoesOperacional}
-                                                placeholder="Busque ou digite..."
-                                            />
+                                            <SmartInput value={tempDireta} onChange={setTempDireta} options={opcoesOperacional} placeholder="Busque ou digite..." />
                                             <button onClick={addDireta} className="bg-green-600 text-white p-2 rounded"><Plus size={18}/></button>
                                         </div>
                                         {listaDireta.length > 0 && <div className="space-y-1">{listaDireta.map((nome, idx) => (<div key={idx} className="flex justify-between items-center bg-green-50 p-2 rounded border border-green-100 text-sm"><span className="text-green-800 font-bold">{nome}</span><button onClick={() => removeDireta(idx)} className="text-red-400"><Trash2 size={14}/></button></div>))}</div>}
@@ -507,13 +469,7 @@ export default function NovoRDO() {
                                     <div className="border-t pt-4">
                                         <div className="flex justify-between mb-2"><span className="text-xs font-bold text-orange-600 uppercase flex gap-1"><Truck size={14}/> Equipamentos</span></div>
                                         <div className="flex gap-2 mb-3">
-                                            {/* SMART INPUT: DIGITA E FILTRA */}
-                                            <SmartInput 
-                                                value={tempEquip.desc}
-                                                onChange={(val:string) => setTempEquip({...tempEquip, desc: val})}
-                                                options={catalogoEquip}
-                                                placeholder="Equipamento..."
-                                            />
+                                            <SmartInput value={tempEquip.desc} onChange={(val:string) => setTempEquip({...tempEquip, desc: val})} options={catalogoEquip} placeholder="Equipamento..." />
                                             <input type="number" className="w-16 p-2 border rounded text-center" value={tempEquip.qtd} onChange={e => setTempEquip({...tempEquip, qtd: parseInt(e.target.value) || 1})}/>
                                             <button onClick={addEquipamento} className="bg-orange-500 text-white p-2 rounded"><Plus size={18}/></button>
                                         </div>
@@ -522,7 +478,6 @@ export default function NovoRDO() {
                                 </section>
                             </div>
                         )}
-
                         {passoWizard === 3 && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
                                 <h3 className="font-bold text-lg text-gray-700">3. Evidências e Detalhes</h3>
